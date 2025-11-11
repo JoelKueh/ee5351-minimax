@@ -86,7 +86,7 @@ and bishops that share the same square.
 typedef struct {
     uint64_t color;         /**< Bitmasks for colored pieces. */
     uint64_t piece[5];      /**< A set of bitmasks for piece types. */
-} device_bitboard_t;
+} gpu_bitboard_t;
 ```
 
 ## Search Strategy
