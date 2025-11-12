@@ -1,8 +1,12 @@
 
 #include <string.h>
 
+#include "gpu_types.h"
+
+#include "gpu_board.h"
+#include "gpu_state.h"
+
 #include "cb_lib.h"
-#include "cb_board.h"
 #include "cb_tables.h"
 #include "cb_const.h"
 #include "cb_move.h"
@@ -35,15 +39,19 @@ static inline uint64_t pawn_smear_right(uint64_t pawns, cb_color_t color)
         (pawns << 7 & ~BB_RIGHT_COL);
 }
 
-static inline void append_pushes(cb_mvlst_t *mvlst, cb_board_t *board, uint64_t pushes)
+static inline void append_pushes(
+		gpu_move_t *restrict moves,
+		uint32_t *restrict offset,
+		uint64_t pushes, cb_color_t color)
 {
     uint8_t target;
     uint8_t sq;
 
     while (pushes != 0) {
         target = pop_rbit(&pushes);
-        sq = target + (board->turn == CB_WHITE ? 8 : -8);
-        cb_mvlst_push(mvlst, cb_mv_from_data(sq, target, CB_MV_QUIET));
+        sq = target + (color == CB_WHITE ? 8 : -8);
+	moves[(*offset)++] = cb_mv_from_data(sq, target, CB_MV_QUIET);
+        mvlst, cb_mv_from_data(sq, target, CB_MV_QUIET));
     }
 }
 
