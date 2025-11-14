@@ -1,13 +1,28 @@
 
 #include <string.h>
 
+#include "gpu_types.h"
+
+#include "gpu_board.h"
+#include "gpu_state.h"
+
 #include "cb_lib.h"
-#include "cb_board.h"
 #include "cb_tables.h"
 #include "cb_const.h"
 #include "cb_move.h"
 #include "cb_bitutil.h"
 #include "cb_history.h"
+
+/* TODO: Move generation task. This is likely the hardest task.
+ *
+ * I will take care of pawn moves and castling. You don't need to worry about
+ * that. Additionally, most of the move generation code from the CPU will
+ * translate nicely to the GPU. There are some changes that I have considered
+ * that might require some wider changes, but I'll save them for when we
+ * have a working model.
+ *
+ * All in all, you will need to implmement
+ */
 
 static inline uint64_t pawn_smear(uint64_t pawns, cb_color_t color)
 {
@@ -35,15 +50,19 @@ static inline uint64_t pawn_smear_right(uint64_t pawns, cb_color_t color)
         (pawns << 7 & ~BB_RIGHT_COL);
 }
 
-static inline void append_pushes(cb_mvlst_t *mvlst, cb_board_t *board, uint64_t pushes)
+static inline void append_pushes(
+		gpu_move_t *restrict moves,
+		uint32_t *restrict offset,
+		uint64_t pushes, cb_color_t color)
 {
     uint8_t target;
     uint8_t sq;
 
     while (pushes != 0) {
         target = pop_rbit(&pushes);
-        sq = target + (board->turn == CB_WHITE ? 8 : -8);
-        cb_mvlst_push(mvlst, cb_mv_from_data(sq, target, CB_MV_QUIET));
+        sq = target + (color == CB_WHITE ? 8 : -8);
+	moves[(*offset)++] = cb_mv_from_data(sq, target, CB_MV_QUIET);
+        mvlst, cb_mv_from_data(sq, target, CB_MV_QUIET));
     }
 }
 
@@ -136,9 +155,6 @@ void append_pawn_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *
     /* Get the mask of pawns that we want to evaluate. */
     uint64_t pawns = board->bb.piece[board->turn][CB_PTYPE_PAWN];
 
-    /* TODO: REMOVE ME.
-    cb_print_state(stdout, state); */
-
     /* Remove all of the pinned pawns and add back those that lie on a left ray. */
     uint64_t left_pin_mask = state->pins[CB_DIR_DR] | state->pins[CB_DIR_UL];
     uint64_t left_pawns = (pawns & ~state->pins[8]) | (pawns & left_pin_mask);
@@ -212,6 +228,10 @@ uint64_t gen_pseudo_mv_mask(cb_ptype_t ptype, cb_color_t pcolor, uint8_t sq, uin
     }
 }
 
+/* TODO: Move generation work really begins here.
+ *
+ * Pin adjustment needs a serious rework to save on register space, good luck.
+ */
 static inline uint64_t pin_adjust(cb_board_t *board, cb_state_tables_t *state, uint8_t sq,
                                   uint64_t moves)
 {
@@ -221,6 +241,7 @@ static inline uint64_t pin_adjust(cb_board_t *board, cb_state_tables_t *state, u
     return (state->pins[dir] & (UINT64_C(1) << sq)) == 0 ? moves : (moves & state->pins[dir]);
 }
 
+/* TODO: This should look mostly the same as the CPU version. */
 uint64_t cb_gen_legal_mv_mask(cb_board_t *board, cb_state_tables_t *state, uint8_t sq)
 {
     /* Generate the pseudo moves. */
@@ -236,6 +257,7 @@ uint64_t cb_gen_legal_mv_mask(cb_board_t *board, cb_state_tables_t *state, uint8
     return moves;
 }
 
+/* TODO: Simple moves cover pretty much everything. */
 void append_simple_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
 {
     uint8_t sq, target;
@@ -256,6 +278,7 @@ void append_simple_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t
     }
 }
 
+/* TODO: I got this one, it's about castling. */
 static inline bool ksc_legal(cb_board_t *board, cb_state_tables_t *state)
 {
     cb_history_t hist = board->hist.data[board->hist.count - 1].hist;
@@ -269,6 +292,7 @@ static inline bool ksc_legal(cb_board_t *board, cb_state_tables_t *state)
         && cb_hist_has_ksc(hist, board->turn);
 }
 
+/* TODO: I got this one, it's about castling. */
 static inline bool qsc_legal(cb_board_t *board, cb_state_tables_t *state)
 {
     cb_history_t hist = board->hist.data[board->hist.count - 1].hist;
@@ -282,6 +306,7 @@ static inline bool qsc_legal(cb_board_t *board, cb_state_tables_t *state)
         && cb_hist_has_qsc(hist, board->turn);
 }
 
+/* TODO: I got this one, it's about castling. */
 void append_castle_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
 {
     uint8_t from = board->turn == CB_WHITE ? M_WHITE_KING_START : M_BLACK_KING_START;
@@ -300,6 +325,7 @@ void append_castle_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t
     }
 }
 
+/* TODO: I got this one, it's about enpassant. */
 void append_enp_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
 {
     /* Exit early if there is not availiable enpassant. */
@@ -350,6 +376,7 @@ void append_enp_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *s
     }
 }
 
+/* TODO: This one is pretty simple to change. */
 void cb_gen_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
 {
     cb_mvlst_clear(mvlst);
@@ -359,6 +386,7 @@ void cb_gen_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state
     append_enp_moves(mvlst, board, state);
 }
 
+/* TODO: This one should be a straightforward translation. */
 static inline uint64_t gen_threats(cb_board_t *board)
 {
     uint64_t threats;
@@ -384,6 +412,7 @@ static inline uint64_t gen_threats(cb_board_t *board)
     return threats;
 }
 
+/* TODO: This one should be a straightforward translation. */
 static inline uint64_t gen_checks(cb_board_t *board, uint64_t threats)
 {
     uint64_t *pieces = board->bb.piece[!board->turn];
@@ -407,6 +436,7 @@ static inline uint64_t gen_checks(cb_board_t *board, uint64_t threats)
     return checks;
 }
 
+/* TODO: This one should be a straightforward translation. */
 static inline uint64_t gen_check_blocks(cb_board_t *board, uint64_t checks)
 {
     if (checks == 0)
@@ -419,6 +449,10 @@ static inline uint64_t gen_check_blocks(cb_board_t *board, uint64_t checks)
     return cb_read_tf_table(check_sq, king_sq) | (UINT64_C(1) << check_sq);
 }
 
+/* TODO: This one should be a straightforward translation.
+ *
+ * I'd recommend looking this one up on Chess Programming Wiki.
+ */
 static inline uint64_t xray_bishop_attacks(uint64_t occ, uint64_t blockers, uint64_t sq)
 {
     uint64_t attacks = cb_read_bishop_atk_msk(sq, occ);
@@ -426,6 +460,10 @@ static inline uint64_t xray_bishop_attacks(uint64_t occ, uint64_t blockers, uint
     return attacks ^ cb_read_bishop_atk_msk(sq, occ ^ blockers);
 }
 
+/* TODO: This one should be a straightforward translation.
+ *
+ * I'd recommend looking this one up on Chess Programming Wiki.
+ */
 static inline uint64_t xray_rook_attacks(uint64_t occ, uint64_t blockers, uint64_t sq)
 {
     uint64_t attacks = cb_read_rook_atk_msk(sq, occ);
@@ -433,6 +471,7 @@ static inline uint64_t xray_rook_attacks(uint64_t occ, uint64_t blockers, uint64
     return attacks ^ cb_read_rook_atk_msk(sq, occ ^ blockers);
 }
 
+/* TODO: This fucntion needs serious adjustment. */
 static inline void gen_pins(uint64_t pins[10], cb_board_t *board)
 {
     uint64_t king = board->bb.piece[board->turn][CB_PTYPE_KING];
@@ -452,6 +491,12 @@ static inline void gen_pins(uint64_t pins[10], cb_board_t *board)
     while (pinner) {
         sq = pop_rbit(&pinner);
         dir = cb_get_ray_direction(king_sq, sq);
+
+        /* NOTE: This is the dumb thing. I read the tf_table (to-from table)
+         * right away to get the ray that the pinned piece lies on. If
+         * we delay this computation, we don't need to use nearly as many
+         * registers.
+         */
         pins[dir] = cb_read_tf_table(sq, king_sq);
         pins[8] ^= pins[dir];
     }
@@ -463,11 +508,19 @@ static inline void gen_pins(uint64_t pins[10], cb_board_t *board)
     while (pinner) {
         sq = pop_rbit(&pinner);
         dir = cb_get_ray_direction(king_sq, sq);
+
+        /* NOTE: Same thing here. */
         pins[dir] = cb_read_tf_table(sq, king_sq);
         pins[8] ^= pins[dir];
     }
 }
 
+/* TODO: Move Generation Task.
+ *
+ * These functions will need to be adjusted for the GPU.
+ * In particular, I think we will need to take a look at the way I handle
+ * pins. It is kindof stupid. See notes above and in gpu_types.h.
+ */
 void cb_gen_board_tables(cb_state_tables_t *state, cb_board_t *board)
 {
     state->threats = gen_threats(board);
