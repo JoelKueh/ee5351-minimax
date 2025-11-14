@@ -47,4 +47,16 @@ typedef union {
     } state;
 } gpu_board_t;
 
+/**
+ * @breif State table data structure that is useful in move generation.
+ *
+ * NOTE: I've adjusted this
+ */
+typedef struct {
+    uint64_t threats;       /**< A bitmask for all pieces that threaten the king. */
+    uint64_t checks;        /**< A bitmask for all pieces that check the king. */
+    uint64_t check_blocks;  /**< A bitmask for all squares that can break a check. */
+    uint64_t pinned;        /**< A bitmask for all pinned pieces. */
+} cb_state_tables_t;
+
 #endif /* GPU_TYPES_H */
