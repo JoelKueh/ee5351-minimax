@@ -12,7 +12,7 @@
 #include "cb_board.h"
 #include "cb_history.h"
 
-void cb_make(cb_board_t *board, const cb_move_t mv)
+__device__ void gpu_make(cb_board_t *board, const cb_move_t mv)
 {
     cb_history_t old_state = board->hist.data[board->hist.count - 1].hist;
     cb_hist_ele_t new_ele;
@@ -142,7 +142,7 @@ void cb_make(cb_board_t *board, const cb_move_t mv)
     cb_hist_stack_push(&board->hist, new_ele);
 }
 
-void cb_unmake(cb_board_t *board)
+__device__ void gpu_unmake(cb_board_t *board)
 {
     cb_hist_ele_t old_ele = cb_hist_stack_pop(&board->hist);
     cb_hist_ele_t new_ele;

@@ -1,5 +1,5 @@
 
-#include "gpu_tables.h"
+#include "gpu_tables.cuh"
 
 /* TODO: Task 1: Implement gpu table read functions.
  *
@@ -65,7 +65,7 @@ __device__ uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ)
     return 0;
 }
 
-__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, cb_color_t color)
+__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color)
 {
     /* TODO: Impelment me! */
     return 0;

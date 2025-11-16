@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "cb_types.h"
+#include "gpu_types.cuh"
 
 /**
  * @breif Initializes gpu copies of tables. Copies them to texture memory.
@@ -38,7 +38,7 @@ __device__ uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ);
  * @param color The color of the attacking pawn.
  * @return A bitmask representing the attacked squares.
  */
-__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, cb_color_t color);
+__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color);
 
 /**
  * @breif Reads the knight attack masks

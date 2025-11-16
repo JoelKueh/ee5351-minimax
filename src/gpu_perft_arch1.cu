@@ -1,6 +1,6 @@
 
-#include "cblib_gpu/gpu_types.h"
-#include "cblib_gpu/gpu_gen.h"
+#include "cblib_gpu/gpu_types.cuh"
+#include "cblib_gpu/gpu_gen.cuh"
 
 /**
  * @breif Counts the number of moves avaliable from a certain position.

@@ -1,10 +1,7 @@
 
-#include <time.h>
-
-#include "perft.h"
-#include "crosstime.h"
-#include "cb_lib.h"
-#include "cb_move.h"
+//#include "crosstime.h"
+#include "cblib_gpu/gpu_lib.h"
+#include <cb_lib.h>
 #include <inttypes.h>
 
 /* TODO: We will have to implement the switch over to the GPU somewhere
@@ -15,10 +12,17 @@
  * We just need to do something different when we reach the desired depth.
  */
 
+int main()
+{
+    return 0;
+}
+
 /* TODO: To be clear, almost all of the necessary changes can be made
  * in this function. */
 uint64_t perfting(cb_board_t *board, cb_state_tables_t *state, int depth)
 {
+    /* TODO: Remove this if directive. It's just to allow stuff to compile. */
+#if 0
     uint64_t cnt = 0;
     int i;
     cb_move_t mv;
@@ -47,10 +51,14 @@ uint64_t perfting(cb_board_t *board, cb_state_tables_t *state, int depth)
     }
 
     return cnt;
+#endif
+    return 0;
 }
 
-int perft(cb_board_t *board, int depth)
+int perft(gpu_board_t *board, int depth)
 {
+    /* TODO: Remove this if directive. It's just to allow stuff to compile. */
+#if 0
     cb_errno_t result;
     cb_error_t err;
     cb_mvlst_t mvlst;
@@ -97,6 +105,8 @@ int perft(cb_board_t *board, int depth)
     printf("Time: %.3fms\n", (end_time - start_time) / 1000000.0);
     printf("\n");
 
+    return 0;
+#endif
     return 0;
 }
 

@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #include "cb_types.h"
-#include "gpu_types.h"
+#include "gpu_types.cuh"
 
 __device__ static inline cb_color_t cb_color_at_sq(
         const gpu_board_t *restrict board, uint8_t sq)

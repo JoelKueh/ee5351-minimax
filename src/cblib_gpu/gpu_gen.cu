@@ -1,17 +1,10 @@
 
 #include <string.h>
 
-#include "gpu_types.h"
-
-#include "gpu_board.h"
-#include "gpu_state.h"
-
-#include "cb_lib.h"
-#include "cb_tables.h"
-#include "cb_const.h"
-#include "cb_move.h"
-#include "cb_bitutil.h"
-#include "cb_history.h"
+#include "gpu_types.cuh"
+#include "gpu_board.cuh"
+#include "gpu_history.cuh"
+#include "gpu_bitutil.cuh"
 
 /* TODO: Move generation task. This is likely the hardest task.
  *
@@ -24,36 +17,40 @@
  * All in all, you will need to implmement
  */
 
-static inline uint64_t pawn_smear(uint64_t pawns, cb_color_t color)
+__device__ static inline uint64_t gpu_pawn_smear(
+        uint64_t pawns, gpu_color_t color)
 {
     return color == CB_WHITE ?
         (pawns >> 9 & ~BB_RIGHT_COL) | (pawns >> 7 & ~BB_LEFT_COL) :
         (pawns << 7 & ~BB_RIGHT_COL) | (pawns << 9 & ~BB_LEFT_COL);
 }
 
-static inline uint64_t pawn_smear_left(uint64_t pawns, cb_color_t color)
+__device__ static inline uint64_t gpu_pawn_smear_left(
+        uint64_t pawns, gpu_color_t color)
 {
     return color == CB_WHITE ?
         (pawns >> 9 & ~BB_RIGHT_COL) :
         (pawns << 9 & ~BB_LEFT_COL);
 }
 
-static inline uint64_t pawn_smear_forward(uint64_t pawns, cb_color_t color)
+__device__ static inline uint64_t gpu_pawn_smear_forward(
+        uint64_t pawns, gpu_color_t color)
 {
     return color == CB_WHITE ? pawns >> 8 : pawns << 8;
 }
 
-static inline uint64_t pawn_smear_right(uint64_t pawns, cb_color_t color)
+__device__ static inline uint64_t gpu_pawn_smear_right(
+        uint64_t pawns, gpu_color_t color)
 {
     return color == CB_WHITE ?
         (pawns >> 7 & ~BB_LEFT_COL) :
         (pawns << 7 & ~BB_RIGHT_COL);
 }
 
-static inline void append_pushes(
-		gpu_move_t *restrict moves,
+__device__ static inline void gpu_append_pushes(
+		gpu_mvlst_t *restrict moves,
 		uint32_t *restrict offset,
-		uint64_t pushes, cb_color_t color)
+		uint64_t pushes, gpu_color_t color)
 {
     uint8_t target;
     uint8_t sq;
@@ -61,12 +58,14 @@ static inline void append_pushes(
     while (pushes != 0) {
         target = pop_rbit(&pushes);
         sq = target + (color == CB_WHITE ? 8 : -8);
-	moves[(*offset)++] = cb_mv_from_data(sq, target, CB_MV_QUIET);
+	    moves[(*offset)++] = cb_mv_from_data(sq, target, CB_MV_QUIET);
         mvlst, cb_mv_from_data(sq, target, CB_MV_QUIET));
     }
 }
 
-static inline void append_doubles(cb_mvlst_t *mvlst, cb_board_t *board, uint64_t doubles)
+__device__ static inline void append_doubles(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        uint64_t doubles)
 {
     uint8_t target;
     uint8_t sq;
@@ -78,8 +77,9 @@ static inline void append_doubles(cb_mvlst_t *mvlst, cb_board_t *board, uint64_t
     }
 }
 
-static inline void append_left_attacks(cb_mvlst_t *mvlst, cb_board_t *board,
-                                       uint64_t left_attacks)
+__device__ static inline void append_left_attacks(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        uint64_t left_attacks)
 {
     uint8_t target;
     uint8_t sq;
@@ -91,8 +91,9 @@ static inline void append_left_attacks(cb_mvlst_t *mvlst, cb_board_t *board,
     }
 }
 
-static inline void append_right_attacks(cb_mvlst_t *mvlst, cb_board_t *board,
-                                        uint64_t right_attacks)
+__device__ static inline void append_right_attacks(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        uint64_t right_attacks)
 {
     uint8_t target;
     uint8_t sq;
@@ -104,7 +105,9 @@ static inline void append_right_attacks(cb_mvlst_t *mvlst, cb_board_t *board,
     }
 }
 
-static inline void append_left_promos(cb_mvlst_t *mvlst, cb_board_t *board, uint64_t left_promos)
+__device__ static inline void append_left_promos(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        uint64_t left_promos)
 {
     uint8_t target;
     uint8_t sq;
@@ -119,8 +122,9 @@ static inline void append_left_promos(cb_mvlst_t *mvlst, cb_board_t *board, uint
     }
 }
 
-static inline void append_forward_promos(cb_mvlst_t *mvlst, cb_board_t *board,
-                                         uint64_t forward_promos)
+__device__ static inline void append_forward_promos(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        uint64_t forward_promos)
 {
     uint8_t target;
     uint8_t sq;
@@ -135,7 +139,9 @@ static inline void append_forward_promos(cb_mvlst_t *mvlst, cb_board_t *board,
     }
 }
 
-static inline void append_right_promos(cb_mvlst_t *mvlst, cb_board_t *board, uint64_t right_promos)
+__device__ static inline void append_right_promos(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        uint64_t right_promos)
 {
     uint8_t target;
     uint8_t sq;
@@ -150,7 +156,9 @@ static inline void append_right_promos(cb_mvlst_t *mvlst, cb_board_t *board, uin
     }
 }
 
-void append_pawn_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
+__device__ static inline void append_pawn_moves(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        gpu_state_tables_t *restrict state)
 {
     /* Get the mask of pawns that we want to evaluate. */
     uint64_t pawns = board->bb.piece[board->turn][CB_PTYPE_PAWN];
@@ -206,7 +214,8 @@ void append_pawn_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *
     append_right_promos(mvlst, board, right_promos);
 }
 
-uint64_t gen_pseudo_mv_mask(cb_ptype_t ptype, cb_color_t pcolor, uint8_t sq, uint64_t occ)
+__device__ uint64_t gen_pseudo_mv_mask(
+        cb_ptype_t ptype, cb_color_t pcolor, uint8_t sq, uint64_t occ)
 {
     switch (ptype) {
         case CB_PTYPE_PAWN:
@@ -232,8 +241,9 @@ uint64_t gen_pseudo_mv_mask(cb_ptype_t ptype, cb_color_t pcolor, uint8_t sq, uin
  *
  * Pin adjustment needs a serious rework to save on register space, good luck.
  */
-static inline uint64_t pin_adjust(cb_board_t *board, cb_state_tables_t *state, uint8_t sq,
-                                  uint64_t moves)
+__device__ static inline uint64_t pin_adjust(
+        gpu_board_t *restrict board, gpu_state_tables_t *restrict state,
+        uint8_t sq, uint64_t moves)
 {
     uint64_t mask;
     uint8_t king_sq = peek_rbit(board->bb.piece[board->turn][CB_PTYPE_KING]);
@@ -242,7 +252,9 @@ static inline uint64_t pin_adjust(cb_board_t *board, cb_state_tables_t *state, u
 }
 
 /* TODO: This should look mostly the same as the CPU version. */
-uint64_t cb_gen_legal_mv_mask(cb_board_t *board, cb_state_tables_t *state, uint8_t sq)
+__device__ uint64_t cb_gen_legal_mv_mask(
+        gpu_board_t *restrict board, gpu_state_tables_t *restrict state,
+        uint8_t sq)
 {
     /* Generate the pseudo moves. */
     cb_ptype_t ptype = cb_ptype_at_sq(board, sq);
@@ -258,7 +270,9 @@ uint64_t cb_gen_legal_mv_mask(cb_board_t *board, cb_state_tables_t *state, uint8
 }
 
 /* TODO: Simple moves cover pretty much everything. */
-void append_simple_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
+__device__ void append_simple_moves(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        gpu_state_tables_t *restrict state)
 {
     uint8_t sq, target;
     cb_mv_flag_t flags;
@@ -279,7 +293,8 @@ void append_simple_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t
 }
 
 /* TODO: I got this one, it's about castling. */
-static inline bool ksc_legal(cb_board_t *board, cb_state_tables_t *state)
+__device__ static inline bool ksc_legal(
+        gpu_board_t *restrict board, gpu_state_tables_t *restrict state)
 {
     cb_history_t hist = board->hist.data[board->hist.count - 1].hist;
     uint64_t occ_mask = board->turn == CB_WHITE ? BB_WHITE_KING_SIDE_CASTLE_OCCUPANCY :
@@ -293,7 +308,8 @@ static inline bool ksc_legal(cb_board_t *board, cb_state_tables_t *state)
 }
 
 /* TODO: I got this one, it's about castling. */
-static inline bool qsc_legal(cb_board_t *board, cb_state_tables_t *state)
+__device__ static inline bool qsc_legal(
+        gpu_board_t *restrict board, gpu_state_tables_t *restrict state)
 {
     cb_history_t hist = board->hist.data[board->hist.count - 1].hist;
     uint64_t occ_mask = board->turn == CB_WHITE ? BB_WHITE_QUEEN_SIDE_CASTLE_OCCUPANCY :
@@ -307,7 +323,9 @@ static inline bool qsc_legal(cb_board_t *board, cb_state_tables_t *state)
 }
 
 /* TODO: I got this one, it's about castling. */
-void append_castle_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
+__device__ void append_castle_moves(
+        cb_mvlst_t *restrict mvlst, cb_board_t *restrict board,
+        cb_state_tables_t *restrict state)
 {
     uint8_t from = board->turn == CB_WHITE ? M_WHITE_KING_START : M_BLACK_KING_START;
     uint8_t to;
@@ -326,7 +344,9 @@ void append_castle_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t
 }
 
 /* TODO: I got this one, it's about enpassant. */
-void append_enp_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
+__device__ void append_enp_moves(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        gpu_state_tables_t *restrict state)
 {
     /* Exit early if there is not availiable enpassant. */
     if (!cb_hist_enp_availiable(board->hist.data[board->hist.count - 1].hist))
@@ -377,7 +397,9 @@ void append_enp_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *s
 }
 
 /* TODO: This one is pretty simple to change. */
-void cb_gen_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state)
+__device__ void cb_gen_moves(
+        gpu_mvlst_t *restrict mvlst, gpu_board_t *restrict board,
+        gpu_state_tables_t *restrict state)
 {
     cb_mvlst_clear(mvlst);
     append_pawn_moves(mvlst, board, state);
@@ -387,7 +409,7 @@ void cb_gen_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *state
 }
 
 /* TODO: This one should be a straightforward translation. */
-static inline uint64_t gen_threats(cb_board_t *board)
+__device__ static inline uint64_t gen_threats(gpu_board_t *restrict board)
 {
     uint64_t threats;
     uint8_t sq;
@@ -413,7 +435,8 @@ static inline uint64_t gen_threats(cb_board_t *board)
 }
 
 /* TODO: This one should be a straightforward translation. */
-static inline uint64_t gen_checks(cb_board_t *board, uint64_t threats)
+__device__ static inline uint64_t gen_checks(
+        gpu_board_t *restrict board, uint64_t threats)
 {
     uint64_t *pieces = board->bb.piece[!board->turn];
     uint64_t king = board->bb.piece[board->turn][CB_PTYPE_KING];
@@ -437,7 +460,8 @@ static inline uint64_t gen_checks(cb_board_t *board, uint64_t threats)
 }
 
 /* TODO: This one should be a straightforward translation. */
-static inline uint64_t gen_check_blocks(cb_board_t *board, uint64_t checks)
+__device__ static inline uint64_t gen_check_blocks(
+        gpu_board_t *restrict board, uint64_t checks)
 {
     if (checks == 0)
         return BB_FULL;
@@ -453,7 +477,8 @@ static inline uint64_t gen_check_blocks(cb_board_t *board, uint64_t checks)
  *
  * I'd recommend looking this one up on Chess Programming Wiki.
  */
-static inline uint64_t xray_bishop_attacks(uint64_t occ, uint64_t blockers, uint64_t sq)
+__device__ static inline uint64_t xray_bishop_attacks(
+        uint64_t occ, uint64_t blockers, uint64_t sq)
 {
     uint64_t attacks = cb_read_bishop_atk_msk(sq, occ);
     blockers &= attacks;
@@ -464,7 +489,8 @@ static inline uint64_t xray_bishop_attacks(uint64_t occ, uint64_t blockers, uint
  *
  * I'd recommend looking this one up on Chess Programming Wiki.
  */
-static inline uint64_t xray_rook_attacks(uint64_t occ, uint64_t blockers, uint64_t sq)
+__device__ static inline uint64_t xray_rook_attacks(
+        uint64_t occ, uint64_t blockers, uint64_t sq)
 {
     uint64_t attacks = cb_read_rook_atk_msk(sq, occ);
     blockers &= attacks;
@@ -472,7 +498,8 @@ static inline uint64_t xray_rook_attacks(uint64_t occ, uint64_t blockers, uint64
 }
 
 /* TODO: This fucntion needs serious adjustment. */
-static inline void gen_pins(uint64_t pins[10], cb_board_t *board)
+__device__ static inline void gen_pins(
+        uint64_t pins[10], gpu_board_t *restrict board)
 {
     uint64_t king = board->bb.piece[board->turn][CB_PTYPE_KING];
     uint64_t king_sq = peek_rbit(king);
@@ -521,10 +548,12 @@ static inline void gen_pins(uint64_t pins[10], cb_board_t *board)
  * In particular, I think we will need to take a look at the way I handle
  * pins. It is kindof stupid. See notes above and in gpu_types.h.
  */
-void cb_gen_board_tables(cb_state_tables_t *state, cb_board_t *board)
+__device__ void gpu_gen_board_tables(
+        gpu_state_tables_t *restrict state, gpu_board_t *restrict board)
 {
     state->threats = gen_threats(board);
     state->checks = gen_checks(board, state->threats);
     state->check_blocks = gen_check_blocks(board, state->checks);
     gen_pins(state->pins, board);
 }
+
