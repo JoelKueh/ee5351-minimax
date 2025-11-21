@@ -118,17 +118,17 @@ typedef struct {
  */
 typedef uint16_t gpu_move_t;
 
-/**
- * @breif Holds a list of moves.
- *
- * This data structure is not dynamically sized. A size of CB_MAX_NUM_MOVES was chosen as it
- * is the supposed maximum number of moves that can be played at any given chess position.
- */
-typedef struct {
-    gpu_bitboard_t board;                   /**< Board for this position. */
-    gpu_move_t moves[GPU_MAX_NUM_MOVES];    /**< List of moves. */
-    uint8_t num_moves;      /**< Number of legal moves from this position. */
-} gpu_mvlst_t;
+///**
+// * @breif Holds a list of moves.
+// *
+// * This data structure is not dynamically sized. A size of CB_MAX_NUM_MOVES was chosen as it
+// * is the supposed maximum number of moves that can be played at any given chess position.
+// */
+//typedef struct {
+//    gpu_bitboard_t board;                   /**< Board for this position. */
+//    gpu_move_t moves[GPU_MAX_NUM_MOVES];    /**< List of moves. */
+//    uint8_t num_moves;      /**< Number of legal moves from this position. */
+//} gpu_mvlst_t;
 
 /**
  * @breif Stack element that holds the history of the board.
@@ -138,39 +138,13 @@ typedef struct {
     gpu_move_t move;        /**< The last move played at a given position. */
 } gpu_hist_ele_t;
 
-/**
- * @breif Fixed size datastructure for the perft search on the GPU.
- * This holds the data for the search struct that is stored in global memory.
- */
-typedef struct {
-//    uint64_t color_bbs[GPU_MAX_SEARCH_DEPTH][32]; /**< Color bitboards for all threads. */
-//    uint64_t piece_bbs[GPU_MAX_SEARCH_DEPTH][5][32]; /**< Piece bitboards for all threads. */
-    gpu_bitboard_t board[GPU_MAX_SEARCH_DEPTH]; /**< Previous boards. */
-    gpu_mvlst_t moves[GPU_MAX_SEARCH_DEPTH]; /**< Move list. */
-} gpu_search_struct_t;
-
-/**
- * @brief Shared buffer for the search. This could be used to allow for
- * coallescence of move writes to global memory.
- *
- * This holds the data for the search struct that is stored in shared memory.
- *
- * Stands for search struct shared buffer.
- */
-typedef struct {
-    /* TODO: Could put something interesting here. */
-} gpu_ss_sbuf_t;
-
-/**
- * @breif Arbitrary local data for the search. This is stored in registers.
- * All I can think of to put here would be the current depth and the current
- * number of moves at a paricular depth, but things could be added.
- *
- * Stands for search struct load data.
- */
-typedef struct {
-    int depth;
-} gpu_ss_ld_t;
+///**
+// * @breif Fixed size datastructure for the perft search on the GPU.
+// * This holds the data for the search struct that is stored in global memory.
+// */
+//typedef struct {
+//    gpu_mvlst_t moves[GPU_MAX_SEARCH_DEPTH]; /**< List of move lists. */
+//} gpu_search_struct_t;
 
 #endif /* GPU_TYPES_H */
 

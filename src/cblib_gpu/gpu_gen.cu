@@ -221,7 +221,7 @@ __device__ void append_simple_moves(
         gpu_state_tables_t *__restrict__ state)
 {
     uint8_t sq, target;
-    cb_mv_flag_t flags;
+    gpu_mv_flag_t flags;
     uint64_t mvmsk;
     uint64_t pieces = board->bb.color[board->turn];
 

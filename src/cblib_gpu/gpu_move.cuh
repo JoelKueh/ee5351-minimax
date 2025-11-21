@@ -72,7 +72,7 @@ __device__ static inline void gpu_mvlst_push(
  * Returns the move at a specified index.
  */
 __device__ static inline gpu_move_t gpu_mvlst_at(
-        gpu_mvlst_t *__restrict__ mvlst, uint8_t idx)
+        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset, uint8_t idx)
 {
     return mvlst->moves[idx];
 }
