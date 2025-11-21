@@ -125,8 +125,9 @@ typedef uint16_t gpu_move_t;
  * is the supposed maximum number of moves that can be played at any given chess position.
  */
 typedef struct {
-    gpu_move_t moves[GPU_MAX_NUM_MOVES];    /**< The list of moves. */
-    uint8_t head;                           /**< The index of the top of the stack. */
+    gpu_bitboard_t board;                   /**< Board for this position. */
+    gpu_move_t moves[GPU_MAX_NUM_MOVES];    /**< List of moves. */
+    uint8_t num_moves;      /**< Number of legal moves from this position. */
 } gpu_mvlst_t;
 
 /**
@@ -139,13 +140,37 @@ typedef struct {
 
 /**
  * @breif Fixed size datastructure for the perft search on the GPU.
- * Each thread needs on of these search structures to hold the data
- * for the perft search.
+ * This holds the data for the search struct that is stored in global memory.
  */
 typedef struct {
-    gpu_hist_ele_t hist[GPU_MAX_SEARCH_DEPTH]; /**< History. */
+//    uint64_t color_bbs[GPU_MAX_SEARCH_DEPTH][32]; /**< Color bitboards for all threads. */
+//    uint64_t piece_bbs[GPU_MAX_SEARCH_DEPTH][5][32]; /**< Piece bitboards for all threads. */
+    gpu_bitboard_t board[GPU_MAX_SEARCH_DEPTH]; /**< Previous boards. */
     gpu_mvlst_t moves[GPU_MAX_SEARCH_DEPTH]; /**< Move list. */
-    int depth;              /**< The current depth on the stack. */
 } gpu_search_struct_t;
 
+/**
+ * @brief Shared buffer for the search. This could be used to allow for
+ * coallescence of move writes to global memory.
+ *
+ * This holds the data for the search struct that is stored in shared memory.
+ *
+ * Stands for search struct shared buffer.
+ */
+typedef struct {
+    /* TODO: Could put something interesting here. */
+} gpu_ss_sbuf_t;
+
+/**
+ * @breif Arbitrary local data for the search. This is stored in registers.
+ * All I can think of to put here would be the current depth and the current
+ * number of moves at a paricular depth, but things could be added.
+ *
+ * Stands for search struct load data.
+ */
+typedef struct {
+    int depth;
+} gpu_ss_ld_t;
+
 #endif /* GPU_TYPES_H */
+
