@@ -67,25 +67,4 @@
 #define GPU_MV_FROM_MASK UINT16_C(0x3F << 6)
 #define GPU_MV_FLAG_MASK UINT16_C(0xF << 12)
 
-/**
- * Enum holding the different flags that a move can contain
- */
-enum {
-    GPU_MV_QUIET                =  0 << 12,
-    GPU_MV_DOUBLE_PAWN_PUSH     =  1 << 12,
-    GPU_MV_KING_SIDE_CASTLE     =  2 << 12,
-    GPU_MV_QUEEN_SIDE_CASTLE    =  3 << 12,
-    GPU_MV_CAPTURE              =  4 << 12,
-    GPU_MV_ENPASSANT            =  5 << 12,
-    GPU_MV_KNIGHT_PROMO         =  8 << 12,
-    GPU_MV_BISHOP_PROMO         =  9 << 12,
-    GPU_MV_ROOK_PROMO           = 10 << 12,
-    GPU_MV_QUEEN_PROMO          = 11 << 12,
-    GPU_MV_KNIGHT_PROMO_CAPTURE = 12 << 12,
-    GPU_MV_BISHOP_PROMO_CAPTURE = 13 << 12,
-    GPU_MV_ROOK_PROMO_CAPTURE   = 14 << 12,
-    GPU_MV_QUEEN_PROMO_CAPTURE  = 15 << 12
-};
-typedef uint16_t gpu_mv_flag_t;
-
 #endif /* GPU_CONST_H */

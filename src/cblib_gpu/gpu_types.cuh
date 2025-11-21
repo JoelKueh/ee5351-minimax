@@ -6,7 +6,6 @@
 #include <stdbool.h>
 
 #define GPU_MAX_NUM_MOVES 218
-#define GPU_ERROR_STRLEN 128
 #define GPU_MAX_SEARCH_DEPTH 10
 
 /* Board Representation. */
