@@ -5,54 +5,55 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "cb_types.h"
 #include "gpu_types.cuh"
 
-__device__ static inline cb_color_t cb_color_at_sq(
-        const gpu_board_t *restrict board, uint8_t sq)
+__device__ static inline gpu_color_t gpu_color_at_sq(
+        const gpu_board_t *__restrict__ board, uint8_t sq)
 {
-    return board->bb.color[CB_WHITE] & (UINT64_C(1) << sq) ? CB_WHITE : CB_BLACK;
+    return board->bb.color & (UINT64_C(1) << sq) ? GPU_WHITE : GPU_BLACK;
 }
 
-__device__ static inline cb_color_t cb_color_at(
-        const gpu_board_t *restrict board, uint8_t row, uint8_t col)
+__device__ static inline gpu_color_t gpu_color_at(
+        const gpu_board_t *__restrict__ board, uint8_t row, uint8_t col)
 {
-    return cb_color_at_sq(board, row * 8 + col);
+    return gpu_color_at_sq(board, row * 8 + col);
 }
 
 /* Functions for manipulating the board representation. */
-__device__ static inline void cb_replace_piece(
-        gpu_board_t *restrict board, uint8_t sq, uint8_t ptype, uint8_t pcolor,
-        uint8_t old_ptype, uint8_t old_pcolor)
+__device__ static inline void gpu_replace_piece(
+        gpu_board_t *__restrict__ board, uint8_t sq, uint8_t ptype,
+        uint8_t pcolor, uint8_t old_ptype, uint8_t old_pcolor)
 {
     /* Unset the bits for the piece type. */
     board->bb.piece[ptype] |= UINT64_C(1) << sq;
     board->bb.piece[old_ptype] &= ~(UINT64_C(1) << sq);
 
     /* Update the color bitboard based on the new type and color. */
-    if (pcolor == CB_WHITE)
+    if (pcolor == GPU_WHITE)
         board->bb.color |= UINT64_C(1) << sq;
-    if (old_pcolor == CB_WHITE)
+    if (old_pcolor == GPU_WHITE)
         board->bb.color &= ~(UINT64_C(1) << sq);
 }
 
-__device__ static inline void cb_write_piece(
-        gpu_board_t *restrict board, uint8_t sq, uint8_t ptype, uint8_t pcolor)
+__device__ static inline void gpu_write_piece(
+        gpu_board_t *__restrict__ board, uint8_t sq,
+        uint8_t ptype, uint8_t pcolor)
 {
     board->bb.piece[ptype] |= UINT64_C(1) << sq;
-    if (pcolor == CB_WHITE)
+    if (pcolor == GPU_WHITE)
         board->bb.color |= UINT64_C(1) << sq;
 }
 
-__device__ static inline void cb_delete_piece(
-        gpu_board_t *restrict board, uint8_t sq, uint8_t ptype, uint8_t pcolor)
+__device__ static inline void gpu_delete_piece(
+        gpu_board_t *__restrict__ board, uint8_t sq,
+        uint8_t ptype, uint8_t pcolor)
 {
     board->bb.piece[ptype] &= ~(UINT64_C(1) << sq);
-    if (pcolor == CB_WHITE)
+    if (pcolor == GPU_WHITE)
         board->bb.color &= ~(UINT64_C(1) << sq);
 }
 
-__device__ static inline void cb_wipe_board(gpu_board_t *restrict board)
+__device__ static inline void gpu_wipe_board(gpu_board_t *__restrict__ board)
 {
     board->bb.color = 0;
     board->bb.piece[0] = 0;
@@ -63,3 +64,4 @@ __device__ static inline void cb_wipe_board(gpu_board_t *restrict board)
 }
 
 #endif /* GPU_BOARD_H */
+

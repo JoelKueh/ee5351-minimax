@@ -179,7 +179,7 @@ static inline void cb_hist_set_captured_piece(cb_history_t *hist, cb_ptype_t pid
 
 static inline cb_ptype_t cb_hist_get_captured_piece(cb_history_t *hist)
 {
-    return (*hist & HIST_ENP_COL) >> 5;
+    return (cb_ptype_t)((*hist & HIST_ENP_COL) >> 5);
 }
 
 

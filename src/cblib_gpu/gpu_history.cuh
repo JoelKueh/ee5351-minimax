@@ -13,7 +13,7 @@
  * @breif Writes a history element to the stack and increases depth.
  */
 __device__ static inline void gpu_search_struct_push(
-        gpu_search_struct_t *restrict s, gpu_hist_ele_t ele)
+        gpu_search_struct_t *__restrict__ s, gpu_hist_ele_t ele)
 {
     s->hist[s->depth++] = ele;
 }
@@ -22,7 +22,7 @@ __device__ static inline void gpu_search_struct_push(
  * @breif Pops a history element off the stack and decreases depth.
  */
 __device__ static inline gpu_hist_ele_t gpu_search_struct_pop(
-        gpu_search_struct_t *restrict s)
+        gpu_search_struct_t *__restrict__ s)
 {
     return s->hist[--s->depth];
 }
@@ -118,7 +118,7 @@ __device__ static inline uint8_t gpu_state_enp_col(gpu_history_t hist)
  * Sets up this move state to open an enpassant square.
  */
 __device__ static inline void gpu_state_set_enp(
-        gpu_history_t *restrict hist, uint8_t enp_col)
+        gpu_history_t *__restrict__ hist, uint8_t enp_col)
 {
     *hist = (*hist & ~GPU_STATE_ENP_COL) | (enp_col << 5);
     *hist |= GPU_STATE_HAS_ENP;
@@ -128,16 +128,33 @@ __device__ static inline void gpu_state_set_enp(
  * Removes enpassant from the history state.
  */
 __device__ static inline void gpu_state_decay_enp(
-        gpu_history_t *restrict hist)
+        gpu_history_t *__restrict__ hist)
 {
     *hist &= ~GPU_STATE_ENP_COL;
+}
+
+/**
+ * Sets up this move state to hold a captured piece.
+ */
+static inline void gpu_state_set_captured_piece(
+        gpu_history_t *__restrict__ hist, gpu_ptype_t pid)
+{
+    *hist = (*hist & ~HIST_ENP_COL) | (pid << 5);
+    *hist &= ~HIST_ENP_AVAILABLE;
+}
+
+static inline gpu_ptype_t gpu_state_get_captured_piece(
+        gpu_history_t *__restrict__ hist)
+{
+    return (gpu_ptype_t)((*hist & HIST_ENP_COL) >> 5);
 }
 
 /**
  * Decays castle rights after a move.
  */
 __device__ static inline void gpu_state_decay_castle_rights(
-        gpu_history_t *restrict hist, uint8_t color, uint8_t to, uint8_t from)
+        gpu_history_t *__restrict__ hist, uint8_t color,
+        uint8_t to, uint8_t from)
 {
     /* Remove castling rights for moving a king or rook. */
     *hist &= from == M_WHITE_KING_START ? ~UINT16_C(0b1100) : 0xFFFF;

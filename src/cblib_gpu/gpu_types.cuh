@@ -13,6 +13,7 @@
 typedef struct {
     uint64_t color;         /**< Bitmasks for colored pieces. */
     uint64_t piece[5];      /**< A set of bitmasks for piece types. */
+    uint64_t occ;           /**< Occupancy bitmask. */
 } gpu_bitboard_t;
 
 /**
@@ -30,7 +31,7 @@ typedef bool gpu_color_t;
  * A piece type contains only information about type, not about color.
  * This type can be used to index the bitboard array and is stored in the mailbox.
  */
-typedef enum {
+enum {
     GPU_PTYPE_PAWN   = 0,
     GPU_PTYPE_KNIGHT = 1,
     GPU_PTYPE_BISHOP = 2,
@@ -38,7 +39,29 @@ typedef enum {
     GPU_PTYPE_QUEEN  = 4,
     GPU_PTYPE_KING   = 5,
     GPU_PTYPE_EMPTY  = 6
-} gpu_ptype_t;
+};
+typedef uint8_t gpu_ptype_t;
+
+/**
+ * Enum holding the different flags that a move can contain
+ */
+enum {
+    GPU_MV_QUIET                =  0 << 12,
+    GPU_MV_DOUBLE_PAWN_PUSH     =  1 << 12,
+    GPU_MV_KING_SIDE_CASTLE     =  2 << 12,
+    GPU_MV_QUEEN_SIDE_CASTLE    =  3 << 12,
+    GPU_MV_CAPTURE              =  4 << 12,
+    GPU_MV_ENPASSANT            =  5 << 12,
+    GPU_MV_KNIGHT_PROMO         =  8 << 12,
+    GPU_MV_BISHOP_PROMO         =  9 << 12,
+    GPU_MV_ROOK_PROMO           = 10 << 12,
+    GPU_MV_QUEEN_PROMO          = 11 << 12,
+    GPU_MV_KNIGHT_PROMO_CAPTURE = 12 << 12,
+    GPU_MV_BISHOP_PROMO_CAPTURE = 13 << 12,
+    GPU_MV_ROOK_PROMO_CAPTURE   = 14 << 12,
+    GPU_MV_QUEEN_PROMO_CAPTURE  = 15 << 12
+};
+typedef uint16_t gpu_mv_flag_t;
 
 /* Move representation. */
 typedef uint16_t gpu_move_t;
@@ -78,6 +101,7 @@ typedef uint16_t gpu_history_t;
 typedef struct {
     gpu_bitboard_t bb;  /**< Bitboard field in the union. */
     gpu_history_t state;
+    gpu_color_t turn;
 } gpu_board_t;
 
 /**
