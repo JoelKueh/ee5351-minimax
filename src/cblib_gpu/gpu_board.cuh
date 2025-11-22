@@ -7,6 +7,31 @@
 
 #include "gpu_types.cuh"
 
+__device__ static inline gpu_ptype_t gpu_ptype_at_sq(
+        const gpu_board_t *__restrict__ board, uint8_t sq)
+{
+    gpu_ptype_t ptype = GPU_PTYPE_EMPTY;
+
+    ptype = GPU_BB_PAWNS(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+        GPU_PTYPE_PAWN : ptype;
+    ptype = GPU_BB_KNIGHTS(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+        GPU_PTYPE_KNIGHT : ptype;
+    ptype = GPU_BB_B_AND_Q(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+        GPU_PTYPE_BISHOP : ptype;
+    ptype = GPU_BB_R_AND_Q(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+        (ptype == GPU_PTYPE_BISHOP ? GPU_PTYPE_QUEEN : GPU_PTYPE_ROOK) : ptype;
+    ptype = GPU_BB_KINGS(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+        GPU_PTYPE_KING : ptype;
+
+    return ptype;
+}
+
+__device__ static inline gpu_ptype_t gpu_ptype_at(
+        const gpu_board_t *__restrict__ board, uint8_t row, uint8_t col)
+{
+    return gpu_ptype_at_sq(board, row * 8 + col);
+}
+
 __device__ static inline gpu_color_t gpu_color_at_sq(
         const gpu_board_t *__restrict__ board, uint8_t sq)
 {

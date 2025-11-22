@@ -136,14 +136,14 @@ __device__ static inline void gpu_state_decay_enp(
 /**
  * Sets up this move state to hold a captured piece.
  */
-static inline void gpu_state_set_captured_piece(
+__device__ static inline void gpu_state_set_captured_piece(
         gpu_history_t *__restrict__ hist, gpu_ptype_t pid)
 {
     *hist = (*hist & ~HIST_ENP_COL) | (pid << 5);
     *hist &= ~HIST_ENP_AVAILABLE;
 }
 
-static inline gpu_ptype_t gpu_state_get_captured_piece(
+__device__ static inline gpu_ptype_t gpu_state_get_captured_piece(
         gpu_history_t *__restrict__ hist)
 {
     return (gpu_ptype_t)((*hist & HIST_ENP_COL) >> 5);
