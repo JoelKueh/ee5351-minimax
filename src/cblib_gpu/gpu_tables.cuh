@@ -17,6 +17,14 @@ __device__ void gpu_init_magic_tables();
 __device__ void gpu_free_magic_tables();
 
 /**
+ * @breif Reads the pawn attack masks.
+ * @param sq The square.
+ * @param color The color to read.
+ * @return A bitmask representing the attacked squares.
+ */
+__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color);
+
+/**
  * @breif Reads the bishop attack masks
  * @param sq The square.
  * @param occ The relevant occupancy mask.

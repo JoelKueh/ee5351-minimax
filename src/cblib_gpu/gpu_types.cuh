@@ -8,6 +8,17 @@
 #define GPU_MAX_NUM_MOVES 218
 #define GPU_MAX_SEARCH_DEPTH 10
 
+/* Macros for reading pieces in the board. */
+#define GPU_BB_COLOR(b, c)   (c ? b.color : b.occ & ~b.color);
+#define GPU_BB_PAWNS(b, c)   (b.piece[0] & (c ? b.color : ~b.color))
+#define GPU_BB_KNIGHTS(b, c) (b.piece[1] & (c ? b.color : ~b.color))
+#define GPU_BB_B_AND_Q(b, c) (b.piece[2] & (c ? b.color : ~b.color)) /* Bishops and Queens. */
+#define GPU_BB_R_AND_Q(b, c) (b.piece[3] & (c ? b.color : ~b.color)) /* Rooks and Queens. */
+#define GPU_BB_BISHOPS(b, c) (b.piece[2] & ~b.piece[3] & (c ? b.color : ~b.color))
+#define GPU_BB_ROOKS(b, c)   (b.piece[3] & ~b.piece[2] & (c ? b.color : ~b.color))
+#define GPU_BB_QUEENS(b, c)  (b.piece[2] & b.piece[3] & (c ? b.color : ~b.color))
+#define GPU_BB_KINGS(b, c)   (b.piece[4] & (c ? b.color : ~b.color))
+
 /* Board Representation. */
 typedef struct {
     uint64_t color;         /**< Bitmasks for colored pieces. */

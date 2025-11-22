@@ -1,6 +1,7 @@
 
 #include <string.h>
 
+#include "gpu_tables.cuh"
 #include "gpu_types.cuh"
 #include "gpu_move.cuh"
 #include "gpu_board.cuh"
@@ -155,167 +156,166 @@ __device__ static inline void gpu_append_right_promos(
     }
 }
 
+/* TODO: Move pinned pawn logic elsewhere. */
 __device__ static inline void gpu_append_pawn_moves(
         gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     /* Get the mask of pawns that we want to evaluate. */
-    uint64_t pawns = board->bb.piece[board->turn][GPU_PTYPE_PAWN];
+    uint64_t pawns = GPU_BB_PAWNS(board->bb, board->turn);
 
-    /* TODO: FIX ME PINS. */
+    /* First handle all pinned pawns. */
+    uint64_t pinned = pawns & state->pinned;
 
-    /* Remove all of the pinned pawns and add back those that lie on a left ray. */
-    uint64_t left_pin_mask = state->pins[GPU_DIR_DR] | state->pins[GPU_DIR_UL];
-    uint64_t left_pawns = (pawns & ~state->pins[8]) | (pawns & left_pin_mask);
+    pawns &= ~state->pinned;
 
-    /* Remove all of the pinned pawns and add back those that lie on a forward ray. */
-    uint64_t forward_pin_mask = state->pins[CB_DIR_D] | state->pins[CB_DIR_U];
-    uint64_t forward_pawns = (pawns & ~state->pins[8]) | (pawns & forward_pin_mask);
-
-    /* Remove all of the pinned pawns and add back those that lie on a right ray. */
-    uint64_t right_pin_mask = state->pins[CB_DIR_DL] | state->pins[CB_DIR_UR];
-    uint64_t right_pawns = (pawns & ~state->pins[8]) | (pawns & right_pin_mask);
-
-    /* Generate masks for pawns moving left and right. */
-    uint64_t left_smear = gpu_pawn_smear_left(left_pawns, board->turn);
-    uint64_t left_attacks = left_smear & board->bb.color[!board->turn];
-    uint64_t right_smear = gpu_pawn_smear_right(right_pawns, board->turn);
-    uint64_t right_attacks = right_smear & board->bb.color[!board->turn];
-
-    /* Generate masks for pushing pawns. */
-    uint64_t forward_smear = gpu_pawn_smear_forward(forward_pawns, board->turn);
-    uint64_t forward_moves = forward_smear & ~board->bb.occ;
-
-    /* Smear the forward moves again to get the double pushes. */
-    uint64_t double_smear = gpu_pawn_smear_forward(forward_moves, board->turn);
-    uint64_t double_moves = double_smear & ~board->bb.occ;
-    double_moves &= board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE;
-
-    /* Adjust for checks. */
+    /* Generate left attacks for pawns. */
+    uint64_t left_smear = gpu_pawn_smear_left(pawns, board->turn);
+    uint64_t left_attacks = left_smear & GPU_BB_COLOR(board->bb, !board->turn);
     left_attacks &= state->check_blocks;
-    right_attacks &= state->check_blocks;
-    forward_moves &= state->check_blocks;
-    double_moves &= state->check_blocks;
-
-    /* Select the moves that cuase a promotion. */
     uint64_t left_promos = left_attacks & (BB_TOP_ROW | BB_BOTTOM_ROW);
     left_attacks ^= left_promos;
+    gpu_append_left_attacks(moves, offset, board, left_attacks);
+    gpu_append_left_promos(moves, offset, board, left_promos);
+
+    /* Generate right attacks for pawns. */
+    uint64_t right_smear = gpu_pawn_smear_right(pawns, board->turn);
+    uint64_t right_attacks = right_smear & GPU_BB_COLOR(board->bb, !board->turn);
+    right_attacks &= state->check_blocks;
     uint64_t right_promos = right_attacks & (BB_TOP_ROW | BB_BOTTOM_ROW);
     right_attacks ^= right_promos;
+    gpu_append_right_attacks(moves, offset, board, right_attacks);
+    gpu_append_right_promos(moves, offset, board, right_promos);
+
+    /* Generate masks for pushing pawns. */
+    uint64_t forward_smear = gpu_pawn_smear_forward(pawns, board->turn);
+    uint64_t forward_moves = forward_smear & ~board->bb.occ;
+    forward_moves &= state->check_blocks;
     uint64_t forward_promos = forward_moves & (BB_TOP_ROW | BB_BOTTOM_ROW);
     forward_moves ^= forward_promos;
-
-    /* Turn the masks into moves. */
     gpu_append_pushes(moves, offset, board, forward_moves);
-    gpu_append_doubles(moves, offset, board, double_moves);
-    gpu_append_left_attacks(moves, offset, board, left_attacks);
-    gpu_append_right_attacks(moves, offset, board, right_attacks);
     gpu_append_forward_promos(moves, offset, board, forward_promos);
-    gpu_append_left_promos(moves, offset, board, left_promos);
-    gpu_append_right_promos(moves, offset, board, right_promos);
+
+    /* Smear the forward moves again to get the double pushes. */
+    uint64_t double_smear = gpu_pawn_smear_forward(pawns, board->turn);
+    uint64_t double_moves = double_smear & ~board->bb.occ;
+    double_moves &= board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE;
+    double_moves &= state->check_blocks;
+    gpu_append_doubles(moves, offset, board, double_moves);
 }
 
 /* TODO: Simple moves cover pretty much everything. */
-__device__ void append_simple_moves(
-        gpu_mvlst_t *__restrict__ mvlst, gpu_board_t *__restrict__ board,
-        gpu_state_tables_t *__restrict__ state)
+__device__ void gpu_append_simple_moves(
+        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t sq, target;
     gpu_mv_flag_t flags;
     uint64_t mvmsk;
-    uint64_t pieces = board->bb.color[board->turn];
+    uint64_t pieces = board->bb.occ & (board->turn ? board->bb.color : ~board->bb.color);
 
     /* Generate pawn moves (and adjust for pins). */
+    uint64_t pawns = GPU_BB_PAWNS(board->bb, board->turn);
 
     /* Generate knight moves (and adjust for pins). */
+    uint64_t knights = GPU_BB_KNIGHTS(board->bb, board->turn);
+    while (knights) {
 
-    /* Generate rook moves. */
+    }
 
-    /* Generate bishop moves. */
+    /* Generate bishop and queen moves. */
+    uint64_t bishops = GPU_BB_B_AND_Q(board->bb, board->turn);
+    while (bishops) {
 
-    /* Generate queen moves. */
+    }
+
+    /* Generate rook and queen moves. */
+    uint64_t rooks = GPU_BB_R_AND_Q(board->bb, board->turn);
+    while (rooks) {
+
+    }
 
     /* Generate king moves. */
+    uint64_t kings = GPU_BB_KINGS(board->bb, board->turn);
+    while (kings) {
 
+    }
 }
 
 __device__ static inline bool ksc_legal(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
-    cb_history_t hist = board->hist.data[board->hist.count - 1].hist;
-    uint64_t occ_mask = board->turn == CB_WHITE ? BB_WHITE_KING_SIDE_CASTLE_OCCUPANCY :
+    uint64_t occ_mask = board->turn == GPU_WHITE ? BB_WHITE_KING_SIDE_CASTLE_OCCUPANCY :
         BB_BLACK_KING_SIDE_CASTLE_OCCUPANCY;
-    uint64_t check_mask = board->turn == CB_WHITE ? BB_WHITE_KING_SIDE_CASTLE_CHECK :
+    uint64_t check_mask = board->turn == GPU_WHITE ? BB_WHITE_KING_SIDE_CASTLE_CHECK :
         BB_BLACK_KING_SIDE_CASTLE_CHECK;
 
     /* If the occupancy intersects occ_mask or the threats intersect ckeck_mask. No castling. */
     return ((board->bb.occ & occ_mask) | (state->threats & check_mask)) == 0
-        && cb_hist_has_ksc(hist, board->turn);
+        && gpu_state_has_ksc(board->state, board->turn);
 }
 
-/* TODO: I got this one, it's about castling. */
 __device__ static inline bool qsc_legal(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
-    cb_history_t hist = board->hist.data[board->hist.count - 1].hist;
-    uint64_t occ_mask = board->turn == CB_WHITE ? BB_WHITE_QUEEN_SIDE_CASTLE_OCCUPANCY :
+    uint64_t occ_mask = board->turn == GPU_WHITE ? BB_WHITE_QUEEN_SIDE_CASTLE_OCCUPANCY :
         BB_BLACK_QUEEN_SIDE_CASTLE_OCCUPANCY;
-    uint64_t check_mask = board->turn == CB_WHITE ? BB_WHITE_QUEEN_SIDE_CASTLE_CHECK :
+    uint64_t check_mask = board->turn == GPU_WHITE ? BB_WHITE_QUEEN_SIDE_CASTLE_CHECK :
         BB_BLACK_QUEEN_SIDE_CASTLE_CHECK;
 
     /* If the occupancy intersects occ_mask or the threats intersect ckeck_mask. No castling. */
     return ((board->bb.occ & occ_mask) | (state->threats & check_mask)) == 0
-        && cb_hist_has_qsc(hist, board->turn);
+        && gpu_state_has_qsc(board->state, board->turn);
 }
 
-/* TODO: I got this one, it's about castling. */
-__device__ static inline void append_castle_moves(
+__device__ static inline void gpu_append_castle_moves(
         gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
-    uint8_t from = board->turn == CB_WHITE ? M_WHITE_KING_START : M_BLACK_KING_START;
+    uint8_t from = board->turn == GPU_WHITE ? M_WHITE_KING_START : M_BLACK_KING_START;
     uint8_t to;
 
     if (ksc_legal(board, state)) {
-        to = board->turn == CB_WHITE ? M_WHITE_KING_SIDE_CASTLE_TARGET :
+        to = board->turn == GPU_WHITE ? M_WHITE_KING_SIDE_CASTLE_TARGET :
             M_BLACK_KING_SIDE_CASTLE_TARGET;
-        cb_mvlst_push(mvlst, cb_mv_from_data(from, to, CB_MV_KING_SIDE_CASTLE));
+        moves[(*offset)++] = gpu_mv_from_data(from, to, GPU_MV_KING_SIDE_CASTLE);
     }
 
     if (qsc_legal(board, state)) {
-        to = board->turn == CB_WHITE ? M_WHITE_QUEEN_SIDE_CASTLE_TARGET :
+        to = board->turn == GPU_WHITE ? M_WHITE_QUEEN_SIDE_CASTLE_TARGET :
             M_BLACK_QUEEN_SIDE_CASTLE_TARGET;
-        cb_mvlst_push(mvlst, cb_mv_from_data(from, to, CB_MV_QUEEN_SIDE_CASTLE));
+        moves[(*offset)++] = gpu_mv_from_data(from, to, GPU_MV_QUEEN_SIDE_CASTLE);
     }
 }
 
 /* TODO: I got this one, it's about enpassant. */
-__device__ void append_enp_moves(
+__device__ void gpu_append_enp_moves(
         gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
+    /* NOTE: Enpassants are rare, so this function is allowed to be slow. */
+
     /* Exit early if there is not availiable enpassant. */
-    if (!cb_hist_enp_availiable(board->hist.data[board->hist.count - 1].hist))
+    if (!gpu_state_enp_availiable(board->state))
         return;
 
-    /* Get the swares relavent to the piece that can enpassant. */
-    gpu_history_t hist = board->hist.data[board->hist.count - 1].hist;
-    uint8_t enp_row_start = board->turn == CB_WHITE ? M_BLACK_MIN_ENPASSANT_TARGET :
+    /* Get the squares relavent to the piece that can enpassant. */
+    uint8_t enp_row_start = board->turn == GPU_WHITE ? M_BLACK_MIN_ENPASSANT_TARGET :
         M_WHITE_MIN_ENPASSANT_TARGET;
-    uint8_t enp_sq = enp_row_start + cb_hist_enp_col(hist);
-    uint8_t enemy_sq = enp_sq + (board->turn == CB_WHITE ? 8 : -8);
+    uint8_t enp_sq = enp_row_start + gpu_state_enp_col(board->state);
+    uint8_t enemy_sq = enp_sq + (board->turn == GPU_WHITE ? 8 : -8);
 
     /* Get all of the pieces that can enpassnt. */
-    uint64_t enp_sources = cb_read_pawn_atk_msk(enp_sq, !board->turn)
-        & board->bb.piece[board->turn][CB_PTYPE_PAWN];
+    uint64_t enp_sources = gpu_read_pawn_atk_msk(enp_sq, !board->turn)
+        & GPU_BB_PAWNS(board->bb, board->turn);
 
     /* Loop through the pieces that can enpassant and generate the moves. */
     uint8_t sq, king_sq;
     gpu_move_t mv;
     uint64_t new_occ, bishop_threats, rook_threats;
     while (enp_sources) {
-        sq = pop_rbit(&enp_sources);
-        mv = cb_mv_from_data(sq, enp_sq, CB_MV_ENPASSANT);
+        sq = gpu_pop_rbit(&enp_sources);
+        mv = gpu_mv_from_data(sq, enp_sq, GPU_MV_ENPASSANT);
 
         /* Update the occupancy mask to what it will be after the move takes place. */
         new_occ = board->bb.occ;
@@ -325,20 +325,18 @@ __device__ void append_enp_moves(
 
         /* Check if the king is in check after the move is made.
          * This could be the case if some piece was pinned before the enpassant was made. */
-        king_sq = gpu_peek_rbit(board->bb.piece[board->turn][CB_PTYPE_KING]);
+        king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
 
         bishop_threats = gpu_read_bishop_atk_msk(king_sq, new_occ)
-            & (board->bb.piece[!board->turn][CB_PTYPE_BISHOP]
-                | board->bb.piece[!board->turn][CB_PTYPE_QUEEN]);
+            & GPU_BB_B_AND_Q(board->bb, board->turn);
         if (bishop_threats) continue;
 
         rook_threats = gpu_read_rook_atk_msk(king_sq, new_occ)
-            & (board->bb.piece[!board->turn][CB_PTYPE_ROOK]
-                | board->bb.piece[!board->turn][CB_PTYPE_QUEEN]);
+            & GPU_BB_R_AND_Q(board->bb, board->turn);
         if (rook_threats) continue;
 
         /* Push the move if it doesn't cause any problems. */
-        cb_mvlst_push(mvlst, mv);
+        moves[(*offset)++] = mv;
     }
 }
 
@@ -347,39 +345,49 @@ __device__ void cb_gen_moves(
         gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
-    gpu_mvlst_clear(moves);
-    gpu_append_pawn_moves(moves, board, state);
-    gpu_append_simple_moves(moves, board, state);
-    gpu_append_castle_moves(moves, board, state);
-    gpu_append_enp_moves(moves, board, state);
+    gpu_append_pawn_moves(moves, offset, board, state);
+    gpu_append_simple_moves(moves, offset, board, state);
+    gpu_append_castle_moves(moves, offset, board, state);
+    gpu_append_enp_moves(moves, offset, board, state);
 }
 
-/* TODO: This one should be a straightforward translation. */
 __device__ static inline uint64_t gpu_gen_threats(
         gpu_board_t *__restrict__ board)
 {
     uint64_t threats;
     uint8_t sq;
-    uint64_t pawns = board->bb.piece[!board->turn][CB_PTYPE_PAWN];
-    uint64_t king = board->bb.piece[board->turn][CB_PTYPE_KING];
 
-    /* TODO: Need to reparadigm this. Loop over piece bitmasks. */
+    /* Remove the king to allow pieces to "see through" it. */
+    uint64_t occ = board->bb.occ ^ GPU_BB_KINGS(board->bb, board->turn);
 
-    /* Generate all of the threats. */
-    uint64_t pieces = board->bb.color[!board->turn] ^ pawns;
-    uint64_t occ = board->bb.occ ^ king; /* Remove the king to allow pieces to "see through" it. */
-    cb_ptype_t ptype;
-    cb_color_t pcolor;
+    /* Generate pawn threats. */
+    threats = gpu_pawn_smear(GPU_BB_PAWNS(board->bb, !board->turn), !board->turn);
 
-    /* Generate all threats. */
-    threats = gpu_pawn_smear(pawns, !board->turn);
-    while (pieces) {
-        sq = gpu_pop_rbit(&pieces);
-        ptype = gpu_ptype_at_sq(board, sq);
-        pcolor = gpu_color_at_sq(board, sq);
-// gen_pseudo_mv_mask is not allowed because it causes divergence.
-// Need to be generating moves for the same pieces across all boards.
-//        threats |= gen_pseudo_mv_mask(ptype, pcolor, sq, occ);
+    /* Generate knight threats. */
+    uint64_t knights = GPU_BB_KNIGHTS(board->bb, !board->turn);
+    /* TODO: Fast, non-lookup knight move generation?
+     * https://www.chessprogramming.org/Knight_Pattern.
+     */
+    while (knights) {
+        threats |= gpu_read_knight_atk_msk(gpu_pop_rbit(&knights));
+    }
+
+    /* Generate bishop threats. */
+    uint64_t bishops = GPU_BB_B_AND_Q(board->bb, !board->turn);
+    /* TODO: Fast, non-lookup bishop move generation (kogge-stone)?
+     * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
+     */
+    while (bishops) {
+        threats |= gpu_read_bishop_atk_msk(gpu_pop_rbit(&bishops), board->bb.occ);
+    }
+
+    /* Generate rook threats. */
+    uint64_t rooks = GPU_BB_R_AND_Q(board->bb, !board->turn);
+    /* TODO: Fast, non-lookup rook move generation (kogge-stone)?
+     * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
+     */
+    while (rooks) {
+        threats |= gpu_read_rook_atk_msk(gpu_pop_rbit(&rooks), board->bb.occ);
     }
 
     return threats;
@@ -389,22 +397,22 @@ __device__ static inline uint64_t gpu_gen_threats(
 __device__ static inline uint64_t gpu_gen_checks(
         gpu_board_t *__restrict__ board, uint64_t threats)
 {
-    uint64_t *pieces = board->bb.piece[!board->turn];
-    uint64_t king = board->bb.piece[board->turn][CB_PTYPE_KING];
-    uint64_t occ = board->bb.occ;
+    uint64_t king = GPU_BB_KINGS(board->bb, board->turn);
 
     /* Exit early if the king isn't threatened. */
     if ((king & threats) == 0)
         return 0;
 
     /* Build the list of pieces that check the king. */
-    uint64_t king_sq = peek_rbit(king);
-    uint64_t checks = gpu_read_pawn_atk_msk(king_sq, board->turn) & pieces[CB_PTYPE_PAWN];
-    checks |= gpu_read_knight_atk_msk(king_sq) & pieces[CB_PTYPE_KNIGHT];
-    checks |= gpu_read_bishop_atk_msk(king_sq, occ)
-        & (pieces[GPU_PTYPE_BISHOP] | pieces[GPU_PTYPE_QUEEN]);
-    checks |= gpu_read_rook_atk_msk(king_sq, occ)
-        & (pieces[GPU_PTYPE_ROOK] | pieces[GPU_PTYPE_QUEEN]);
+    uint8_t king_sq = gpu_peek_rbit(king);
+    uint64_t checks = gpu_read_pawn_atk_msk(king_sq, board->turn)
+        & GPU_BB_PAWNS(board->bb, !board->turn);
+    checks |= gpu_read_knight_atk_msk(king_sq)
+        & GPU_BB_KNIGHTS(board->bb, !board->turn);
+    checks |= gpu_read_bishop_atk_msk(king_sq, board->bb.occ)
+        & GPU_BB_B_AND_Q(board->bb, !board->turn);
+    checks |= gpu_read_rook_atk_msk(king_sq, board->bb.occ)
+        & GPU_BB_R_AND_Q(board->bb, !board->turn);
     /* Here's a helpful reminder that a king can never check another king. */
 
     return checks;
@@ -419,7 +427,7 @@ __device__ static inline uint64_t gpu_gen_check_blocks(
     else if (gpu_popcnt(checks) != 1)
         return BB_EMPTY;
 
-    uint8_t king_sq = gpu_peek_rbit(board->bb.piece[board->turn][CB_PTYPE_KING]);
+    uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
     uint8_t check_sq = gpu_peek_rbit(checks);
     return gpu_read_tf_table(check_sq, king_sq) | (UINT64_C(1) << check_sq);
 }
@@ -431,9 +439,9 @@ __device__ static inline uint64_t gpu_gen_check_blocks(
 __device__ static inline uint64_t gpu_xray_bishop_attacks(
         uint64_t occ, uint64_t blockers, uint64_t sq)
 {
-    uint64_t attacks = cb_read_bishop_atk_msk(sq, occ);
+    uint64_t attacks = gpu_read_bishop_atk_msk(sq, occ);
     blockers &= attacks;
-    return attacks ^ cb_read_bishop_atk_msk(sq, occ ^ blockers);
+    return attacks ^ gpu_read_bishop_atk_msk(sq, occ ^ blockers);
 }
 
 /* TODO: This one should be a straightforward translation.
@@ -443,53 +451,34 @@ __device__ static inline uint64_t gpu_xray_bishop_attacks(
 __device__ static inline uint64_t gpu_xray_rook_attacks(
         uint64_t occ, uint64_t blockers, uint64_t sq)
 {
-    uint64_t attacks = cb_read_rook_atk_msk(sq, occ);
+    uint64_t attacks = gpu_read_rook_atk_msk(sq, occ);
     blockers &= attacks;
-    return attacks ^ cb_read_rook_atk_msk(sq, occ ^ blockers);
+    return attacks ^ gpu_read_rook_atk_msk(sq, occ ^ blockers);
 }
 
 /* TODO: This fucntion needs serious adjustment. */
-__device__ static inline void gpu_gen_pins(
-        uint64_t pins[10], gpu_board_t *restrict board)
+__device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
 {
-    uint64_t king = board->bb.piece[board->turn][CB_PTYPE_KING];
-    uint64_t king_sq = peek_rbit(king);
-    uint64_t occ = board->bb.occ;
-    uint64_t blockers = board->bb.color[board->turn];
+    uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
+    uint64_t blockers = GPU_BB_COLOR(board->bb, board->turn);
     uint64_t pinner;
+    uint64_t pinned;
     uint8_t sq, dir;
 
-    /* Set all of the pins to full bitboards. */
-    memset(pins, 0, 10 * sizeof(uint64_t));
-
     /* Get all of the first pinners. */
-    pinner = gpu_xray_bishop_attacks(occ, blockers, king_sq)
-        & (board->bb.piece[!board->turn][CB_PTYPE_BISHOP]
-        | board->bb.piece[!board->turn][CB_PTYPE_QUEEN]);
+    pinner = gpu_xray_bishop_attacks(board->bb.occ, blockers, king_sq)
+        & GPU_BB_B_AND_Q(board->bb, !board->turn);
     while (pinner) {
         sq = gpu_pop_rbit(&pinner);
-        dir = gpu_get_ray_direction(king_sq, sq);
-
-        /* NOTE: This is the dumb thing. I read the tf_table (to-from table)
-         * right away to get the ray that the pinned piece lies on. If
-         * we delay this computation, we don't need to use nearly as many
-         * registers.
-         */
-        pins[dir] = gpu_read_tf_table(sq, king_sq);
-        pins[8] ^= pins[dir];
+        pinned |= gpu_read_tf_table(sq, king_sq) & blockers;
     }
 
     /* Get all of the second pinners. */
-    pinner = gpu_xray_rook_attacks(occ, blockers, king_sq)
-        & (board->bb.piece[!board->turn][CB_PTYPE_ROOK]
-        | board->bb.piece[!board->turn][CB_PTYPE_QUEEN]);
+    pinner = gpu_xray_rook_attacks(board->bb.occ, blockers, king_sq)
+        & GPU_BB_R_AND_Q(board->bb, !board->turn);
     while (pinner) {
         sq = gpu_pop_rbit(&pinner);
-        dir = gpu_get_ray_direction(king_sq, sq);
-
-        /* NOTE: Same thing here. */
-        pins[dir] = gpu_read_tf_table(sq, king_sq);
-        pins[8] ^= pins[dir];
+        pinned |= gpu_read_tf_table(sq, king_sq) & blockers;
     }
 }
 
@@ -505,6 +494,6 @@ __device__ void gpu_gen_board_tables(gpu_state_tables_t *__restrict__ state,
     state->threats = gpu_gen_threats(board);
     state->checks = gpu_gen_checks(board, state->threats);
     state->check_blocks = gpu_gen_check_blocks(board, state->checks);
-    gpu_gen_pins(state->pins, board);
+    state->pinned = gpu_gen_pins(board);
 }
 

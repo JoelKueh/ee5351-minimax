@@ -5,16 +5,20 @@
 #include "gpu_types.cuh"
 
 /**
- * @breif Counts the number of pawn moves avaliable at a given position.
- * @param pawns The list of pawns to moves.
- * @param color The color of the pawns to move (e.g., who's turn is it).
+ * @breif Counts the number of moves avaliable at a given position.
+ * @param board The current board position.
+ * @return The number of moves.
  */
-__device__ int count_pawn_moves(uint64_t pawns, gpu_color_t color);
+__device__ int count_moves(gpu_board_t *__restrict__ board);
 
 /**
- * @breif Generates pawn moves from a specific position.
+ * @breif Generates all legal moves from a given position.
+ * @param moves An output array of moves to write to.
+ * @param offset The offset into the output array that to start writing moves.
+ * @param board The current board position
  */
-__device__ int gen_pawn_moves(gpu_move_t *out_moves, uint64_t pawns,
-        gpu_color_t color);
+__device__ void gen_moves(
+        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_board_t *__restrict__ board);
 
-#endif /* GPU_GEN_H. */
+#endif /* GPU_GEN_H */

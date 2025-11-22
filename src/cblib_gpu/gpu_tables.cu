@@ -53,6 +53,11 @@ __device__ void gpu_free_tables()
     /* TODO: Impelment me! Lots of frees here. */
 }
 
+__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color)
+{
+    /* TODO: Implement me! */
+}
+
 __device__ uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ)
 {
     /* TODO: Impelment me! */
