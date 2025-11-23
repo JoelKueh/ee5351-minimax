@@ -55,7 +55,9 @@ __device__ void gpu_free_tables()
 
 __device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color)
 {
-    /* TODO: Implement me! */
+    return color == GPU_WHITE ?
+        (UINT64_C(1) << (sq - 9)) | (UINT64_C(1) << (sq - 7)) :
+        (UINT64_C(1) << (sq + 9)) | (UINT64_C(1) << (sq + 7));
 }
 
 __device__ uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ)
@@ -65,12 +67,6 @@ __device__ uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ)
 }
 
 __device__ uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ)
-{
-    /* TODO: Impelment me! */
-    return 0;
-}
-
-__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color)
 {
     /* TODO: Impelment me! */
     return 0;

@@ -1,6 +1,6 @@
 
 NVCC= nvcc
-NVCC_FLAGS= -gencode=arch=compute_60,code=\"sm_60\"
+NVCC_FLAGS= -gencode=arch=compute_75,code=\"sm_75\"
 NVCC_FLAGS += -Wno-deprecated-gpu-targets
 
 OPT_LEVEL= -O2

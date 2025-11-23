@@ -129,18 +129,6 @@ typedef struct {
  */
 typedef uint16_t gpu_move_t;
 
-///**
-// * @breif Holds a list of moves.
-// *
-// * This data structure is not dynamically sized. A size of CB_MAX_NUM_MOVES was chosen as it
-// * is the supposed maximum number of moves that can be played at any given chess position.
-// */
-//typedef struct {
-//    gpu_bitboard_t board;                   /**< Board for this position. */
-//    gpu_move_t moves[GPU_MAX_NUM_MOVES];    /**< List of moves. */
-//    uint8_t num_moves;      /**< Number of legal moves from this position. */
-//} gpu_mvlst_t;
-
 /**
  * @breif Stack element that holds the history of the board.
  */
@@ -148,6 +136,7 @@ typedef struct {
     gpu_history_t state;    /**< The history state at a given position. */
     gpu_move_t move;        /**< The last move played at a given position. */
 } gpu_hist_ele_t;
+
 
 /**
  * @breif Fixed size datastructure containing board history.
@@ -160,6 +149,27 @@ typedef struct {
     gpu_hist_ele_t history[GPU_MAX_SEARCH_DEPTH][32];  /* Move and state history. */
 } gpu_history_list_t;
 
+/**
+ * @brief Holds information for one node in the search structure.
+ * Shared among warps.
+ */
+typedef struct {
+    gpu_move_t moves[32][GPU_MAX_NUM_MOVES];
+    gpu_hist_ele_t hist_ele[32];
+    uint8_t move_counts[32];
+} gpu_search_struct_node_t;
+
+/**
+ * @brief Information that each thread needs to work with the search struct.
+ * Local to each thread.
+ */
+typedef struct {
+    gpu_search_struct_node_t *positions;
+    int depth;
+    int offset;
+} gpu_search_struct_t;
+
+#if 0
 /**
  * I think you could do something really cool with coallesced writes in some
  * sort of shared move buffer, but I don't know how that would work yet.
@@ -190,14 +200,13 @@ typedef struct {
  */
 typedef struct {
     gpu_move_t *moves;
-//  gpu_mv_wb_shared_t *buffer;
-    uint8_t offset;
 } gpu_mv_write_buf_t;
 
 /* TODO: You could put the cool write coallescence structure here. */
 typedef struct {
     
 } gpu_mv_wb_shared_t;
+#endif
 
 #endif /* GPU_TYPES_H */
 

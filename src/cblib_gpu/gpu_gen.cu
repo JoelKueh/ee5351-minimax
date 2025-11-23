@@ -7,6 +7,7 @@
 #include "gpu_board.cuh"
 #include "gpu_history.cuh"
 #include "gpu_bitutil.cuh"
+#include "gpu_search_struct.cuh"
 
 /* TODO: Move generation task. This is likely the hardest task.
  *
@@ -50,8 +51,7 @@ __device__ static inline uint64_t gpu_pawn_smear_right(
 }
 
 __device__ static inline void gpu_append_pushes(
-		gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
-		gpu_board_t *__restrict__ board, uint64_t pushes)
+        gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board, uint64_t pushes)
 {
     uint8_t target;
     uint8_t sq;
@@ -59,12 +59,12 @@ __device__ static inline void gpu_append_pushes(
     while (pushes != 0) {
         target = gpu_pop_rbit(&pushes);
         sq = target + (board->turn == GPU_WHITE ? 8 : -8);
-	    moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_QUIET);
+	    gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_QUIET));
     }
 }
 
 __device__ static inline void gpu_append_doubles(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t doubles)
 {
     uint8_t target;
@@ -73,12 +73,12 @@ __device__ static inline void gpu_append_doubles(
     while (doubles != 0) {
         target = gpu_pop_rbit(&doubles);
         sq = target + (board->turn == GPU_WHITE ? 16 : -16);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_DOUBLE_PAWN_PUSH);
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_DOUBLE_PAWN_PUSH));
     }
 }
 
 __device__ static inline void gpu_append_left_attacks(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t left_attacks)
 {
     uint8_t target;
@@ -87,12 +87,12 @@ __device__ static inline void gpu_append_left_attacks(
     while (left_attacks != 0) {
         target = gpu_pop_rbit(&left_attacks);
         sq = target + (board->turn == GPU_WHITE ? 9 : -9);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_CAPTURE);
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_CAPTURE));
     }
 }
 
 __device__ static inline void gpu_append_right_attacks(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t right_attacks)
 {
     uint8_t target;
@@ -101,12 +101,12 @@ __device__ static inline void gpu_append_right_attacks(
     while (right_attacks != 0) {
         target = gpu_pop_rbit(&right_attacks);
         sq = target + (board->turn == GPU_WHITE ? 7 : -7);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_CAPTURE);
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_CAPTURE));
     }
 }
 
 __device__ static inline void gpu_append_left_promos(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t left_promos)
 {
     uint8_t target;
@@ -115,15 +115,15 @@ __device__ static inline void gpu_append_left_promos(
     while (left_promos != 0) {
         target = gpu_pop_rbit(&left_promos);
         sq = target + (board->turn == GPU_WHITE ? 9 : -9);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_KNIGHT_PROMO_CAPTURE);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_BISHOP_PROMO_CAPTURE);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_ROOK_PROMO_CAPTURE);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_QUEEN_PROMO_CAPTURE);
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_KNIGHT_PROMO_CAPTURE));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_BISHOP_PROMO_CAPTURE));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_ROOK_PROMO_CAPTURE));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_QUEEN_PROMO_CAPTURE));
     }
 }
 
 __device__ static inline void gpu_append_forward_promos(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t forward_promos)
 {
     uint8_t target;
@@ -132,15 +132,15 @@ __device__ static inline void gpu_append_forward_promos(
     while (forward_promos != 0) {
         target = gpu_pop_rbit(&forward_promos);
         sq = target + (board->turn == GPU_WHITE ? 8 : -8);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_KNIGHT_PROMO);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_BISHOP_PROMO);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_ROOK_PROMO);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_QUEEN_PROMO);
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_KNIGHT_PROMO));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_BISHOP_PROMO));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_ROOK_PROMO));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_QUEEN_PROMO));
     }
 }
 
 __device__ static inline void gpu_append_right_promos(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t right_promos)
 {
     uint8_t target;
@@ -149,16 +149,16 @@ __device__ static inline void gpu_append_right_promos(
     while (right_promos != 0) {
         target = gpu_pop_rbit(&right_promos);
         sq = target + (board->turn == GPU_WHITE ? 7 : -7);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_KNIGHT_PROMO_CAPTURE);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_BISHOP_PROMO_CAPTURE);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_ROOK_PROMO_CAPTURE);
-        moves[(*offset)++] = gpu_mv_from_data(sq, target, GPU_MV_QUEEN_PROMO_CAPTURE);
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_KNIGHT_PROMO_CAPTURE));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_BISHOP_PROMO_CAPTURE));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_ROOK_PROMO_CAPTURE));
+        gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, GPU_MV_QUEEN_PROMO_CAPTURE));
     }
 }
 
 /* TODO: Move pinned pawn logic elsewhere. */
 __device__ static inline void gpu_append_pawn_moves(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     /* Get the mask of pawns that we want to evaluate. */
@@ -175,8 +175,8 @@ __device__ static inline void gpu_append_pawn_moves(
     left_attacks &= state->check_blocks;
     uint64_t left_promos = left_attacks & (BB_TOP_ROW | BB_BOTTOM_ROW);
     left_attacks ^= left_promos;
-    gpu_append_left_attacks(moves, offset, board, left_attacks);
-    gpu_append_left_promos(moves, offset, board, left_promos);
+    gpu_append_left_attacks(ss, board, left_attacks);
+    gpu_append_left_promos(ss, board, left_promos);
 
     /* Generate right attacks for pawns. */
     uint64_t right_smear = gpu_pawn_smear_right(pawns, board->turn);
@@ -184,8 +184,8 @@ __device__ static inline void gpu_append_pawn_moves(
     right_attacks &= state->check_blocks;
     uint64_t right_promos = right_attacks & (BB_TOP_ROW | BB_BOTTOM_ROW);
     right_attacks ^= right_promos;
-    gpu_append_right_attacks(moves, offset, board, right_attacks);
-    gpu_append_right_promos(moves, offset, board, right_promos);
+    gpu_append_right_attacks(ss, board, right_attacks);
+    gpu_append_right_promos(ss, board, right_promos);
 
     /* Generate masks for pushing pawns. */
     uint64_t forward_smear = gpu_pawn_smear_forward(pawns, board->turn);
@@ -193,20 +193,20 @@ __device__ static inline void gpu_append_pawn_moves(
     forward_moves &= state->check_blocks;
     uint64_t forward_promos = forward_moves & (BB_TOP_ROW | BB_BOTTOM_ROW);
     forward_moves ^= forward_promos;
-    gpu_append_pushes(moves, offset, board, forward_moves);
-    gpu_append_forward_promos(moves, offset, board, forward_promos);
+    gpu_append_pushes(ss, board, forward_moves);
+    gpu_append_forward_promos(ss, board, forward_promos);
 
     /* Smear the forward moves again to get the double pushes. */
     uint64_t double_smear = gpu_pawn_smear_forward(pawns, board->turn);
     uint64_t double_moves = double_smear & ~board->bb.occ;
     double_moves &= board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE;
     double_moves &= state->check_blocks;
-    gpu_append_doubles(moves, offset, board, double_moves);
+    gpu_append_doubles(ss, board, double_moves);
 }
 
 /* TODO: Simple moves cover pretty much everything. */
 __device__ void gpu_append_simple_moves(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t sq, target;
@@ -269,7 +269,7 @@ __device__ static inline bool qsc_legal(gpu_board_t *__restrict__ board,
 }
 
 __device__ static inline void gpu_append_castle_moves(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t from = board->turn == GPU_WHITE ? M_WHITE_KING_START : M_BLACK_KING_START;
@@ -278,25 +278,25 @@ __device__ static inline void gpu_append_castle_moves(
     if (ksc_legal(board, state)) {
         to = board->turn == GPU_WHITE ? M_WHITE_KING_SIDE_CASTLE_TARGET :
             M_BLACK_KING_SIDE_CASTLE_TARGET;
-        moves[(*offset)++] = gpu_mv_from_data(from, to, GPU_MV_KING_SIDE_CASTLE);
+        gpu_ss_push_move(ss, gpu_mv_from_data(from, to, GPU_MV_KING_SIDE_CASTLE));
     }
 
     if (qsc_legal(board, state)) {
         to = board->turn == GPU_WHITE ? M_WHITE_QUEEN_SIDE_CASTLE_TARGET :
             M_BLACK_QUEEN_SIDE_CASTLE_TARGET;
-        moves[(*offset)++] = gpu_mv_from_data(from, to, GPU_MV_QUEEN_SIDE_CASTLE);
+        gpu_ss_push_move(ss, gpu_mv_from_data(from, to, GPU_MV_QUEEN_SIDE_CASTLE));
     }
 }
 
 /* TODO: I got this one, it's about enpassant. */
 __device__ void gpu_append_enp_moves(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     /* NOTE: Enpassants are rare, so this function is allowed to be slow. */
 
     /* Exit early if there is not availiable enpassant. */
-    if (!gpu_state_enp_availiable(board->state))
+    if (!gpu_state_enp_available(board->state))
         return;
 
     /* Get the squares relavent to the piece that can enpassant. */
@@ -336,19 +336,19 @@ __device__ void gpu_append_enp_moves(
         if (rook_threats) continue;
 
         /* Push the move if it doesn't cause any problems. */
-        moves[(*offset)++] = mv;
+        gpu_ss_push_move(ss, mv);
     }
 }
 
 /* TODO: This one is pretty simple to change. */
 __device__ void cb_gen_moves(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset,
+        gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
-    gpu_append_pawn_moves(moves, offset, board, state);
-    gpu_append_simple_moves(moves, offset, board, state);
-    gpu_append_castle_moves(moves, offset, board, state);
-    gpu_append_enp_moves(moves, offset, board, state);
+    gpu_append_pawn_moves(ss, board, state);
+    gpu_append_simple_moves(ss, board, state);
+    gpu_append_castle_moves(ss, board, state);
+    gpu_append_enp_moves(ss, board, state);
 }
 
 __device__ static inline uint64_t gpu_gen_threats(

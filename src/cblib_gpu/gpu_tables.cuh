@@ -41,14 +41,6 @@ __device__ uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ);
 __device__ uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ);
 
 /**
- * @breif Reads the pawn attack masks
- * @param sq The square.
- * @param color The color of the attacking pawn.
- * @return A bitmask representing the attacked squares.
- */
-__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color);
-
-/**
  * @breif Reads the knight attack masks
  * @param sq The square.
  * @return A bitmask representing the attacked squares.

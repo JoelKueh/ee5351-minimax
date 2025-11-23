@@ -41,41 +41,5 @@ __device__ static inline gpu_move_t gpu_mv_from_data(
     return flags | (from << 6) | to;
 }
 
-/**
- * Returns the size of a move list.
- */
-__device__ static inline uint8_t gpu_mvlst_size(
-        gpu_mvlst_t *__restrict__ mvlst)
-{
-    return mvlst->head;
-}
-
-/**
- * Clears the move list.
- */
-__device__ static inline void gpu_mvlst_clear(
-        gpu_mvlst_t *__restrict__ mvlst)
-{
-    mvlst->head = 0;
-}
-
-/**
- * Pushes an element to the move list.
- */
-__device__ static inline void gpu_mvlst_push(
-        gpu_mvlst_t *__restrict__ mvlst, gpu_move_t move)
-{
-    mvlst->moves[mvlst->head++] = move;
-}
-
-/**
- * Returns the move at a specified index.
- */
-__device__ static inline gpu_move_t gpu_mvlst_at(
-        gpu_move_t *__restrict__ moves, uint32_t *__restrict__ offset, uint8_t idx)
-{
-    return mvlst->moves[idx];
-}
-
 #endif /* GPU_MOVE_H */
 

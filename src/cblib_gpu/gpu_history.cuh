@@ -10,24 +10,6 @@
 #define GPU_STATE_HAS_ENP (UINT64_C(1) << 4)
 
 /**
- * @breif Writes a history element to the stack and increases depth.
- */
-__device__ static inline void gpu_search_struct_push(
-        gpu_search_struct_t *__restrict__ s, gpu_hist_ele_t ele)
-{
-    s->hist[s->depth++] = ele;
-}
-
-/**
- * @breif Pops a history element off the stack and decreases depth.
- */
-__device__ static inline gpu_hist_ele_t gpu_search_struct_pop(
-        gpu_search_struct_t *__restrict__ s)
-{
-    return s->hist[--s->depth];
-}
-
-/**
  * Returns true if the player has the right to king side castle, false otherwise.
  */
 __device__ static inline bool gpu_state_has_ksc(
@@ -104,7 +86,7 @@ __device__ static inline void gpu_state_add_castle(
 /**
  * Returns true if there is an enpassant availiable.
  */
-__device__ static inline bool gpu_state_enp_availiable(gpu_history_t hist)
+__device__ static inline bool gpu_state_enp_available(gpu_history_t hist)
 {
     return (hist & GPU_STATE_ENP_COL) != 0;
 }
@@ -144,9 +126,9 @@ __device__ static inline void gpu_state_set_captured_piece(
 }
 
 __device__ static inline gpu_ptype_t gpu_state_get_captured_piece(
-        gpu_history_t *__restrict__ hist)
+        gpu_history_t hist)
 {
-    return (gpu_ptype_t)((*hist & HIST_ENP_COL) >> 5);
+    return (gpu_ptype_t)((hist & HIST_ENP_COL) >> 5);
 }
 
 /**

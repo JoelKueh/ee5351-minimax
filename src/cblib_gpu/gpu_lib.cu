@@ -4,13 +4,15 @@
 #include <threads.h>
 
 #include "gpu_lib.h"
-#include "gpu_tables.cuh"
 #include "gpu_const.cuh"
 #include "gpu_move.cuh"
 #include "gpu_board.cuh"
 #include "gpu_history.cuh"
+#include "gpu_search_struct.cuh"
 
-__device__ void gpu_make(gpu_board_t *board, const gpu_move_t mv)
+__device__ void gpu_make(
+        gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board,
+        const gpu_move_t mv)
 {
     /* Fields of the move and variables for board state. */
     gpu_history_t old_state = board->state;
@@ -39,7 +41,7 @@ __device__ void gpu_make(gpu_board_t *board, const gpu_move_t mv)
         gpu_write_piece(board, to, GPU_PTYPE_PAWN, board->turn);
         gpu_delete_piece(board, from, GPU_PTYPE_PAWN, board->turn);
         gpu_delete_piece(board, to + direction, GPU_PTYPE_PAWN, !board->turn);
-        return;
+        goto out_save_stack;
     }
 
     /* Read the piece type from the board. */
@@ -86,24 +88,24 @@ __device__ void gpu_make(gpu_board_t *board, const gpu_move_t mv)
         gpu_write_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
     }
 
-    /* TODO: Figure out implementation for this. */
-
     /* Save the new state to the stack. */
+out_save_stack:
     board->turn = !board->turn;
-    new_ele.hist = new_state;
+    new_ele.state = new_state;
     new_ele.move = mv;
-    cb_hist_stack_push(&board->hist, new_ele);
+    gpu_ss_descend(ss, new_ele);
 }
 
-__device__ void gpu_unmake(gpu_board_t *board)
+__device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
+        gpu_board_t *__restrict__ board)
 {
-    gpu_hist_ele_t old_ele = cb_hist_stack_pop(&board->hist);
-    gpu_hist_ele_t new_ele;
+    gpu_hist_ele_t old_ele = gpu_ss_ascend(ss);
     gpu_mv_flag_t flag = gpu_mv_get_flags(old_ele.move);
     uint8_t to = gpu_mv_get_to(old_ele.move);
     uint8_t from = gpu_mv_get_from(old_ele.move);
 
     gpu_ptype_t ptype;
+    gpu_ptype_t from_ptype;
     gpu_ptype_t cap_ptype;
 
     /* Variables for castles. */
@@ -113,86 +115,50 @@ __device__ void gpu_unmake(gpu_board_t *board)
     /* Variables for enp. */
     int8_t direction;
 
-    /* TODO: This code has massive divergence. Refactor. */
-#if 0
-    /* Unmake the move. */
+    /* Update the current turn. */
     board->turn = !board->turn;
-    switch (flag) {
-        case GPU_MV_QUIET:
-        case GPU_MV_DOUBLE_PAWN_PUSH:
-            ptype = cb_ptype_at_sq(board, to);
-            cb_write_piece(board, from, ptype, board->turn);
-            cb_delete_piece(board, to, ptype, board->turn);
-            break;
-        case GPU_MV_CAPTURE:
-            ptype = cb_ptype_at_sq(board, to);
-            cap_ptype = cb_hist_get_captured_piece(&old_ele.hist);
-            cb_write_piece(board, from, ptype, board->turn);
-            cb_replace_piece(board, to, cap_ptype, !board->turn, ptype, board->turn);
-            break;
-        case GPU_MV_KING_SIDE_CASTLE:
-            rook_from = board->turn ? M_WHITE_KING_SIDE_ROOK_START :
-                M_BLACK_KING_SIDE_ROOK_START;
-            rook_to = board->turn ? M_WHITE_KING_SIDE_ROOK_TARGET :
-                M_BLACK_KING_SIDE_ROOK_TARGET;
-            cb_write_piece(board, from, GPU_PTYPE_KING, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_KING, board->turn);
-            cb_write_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
-            cb_delete_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
-            break;
-        case GPU_MV_QUEEN_SIDE_CASTLE:
-            rook_from = board->turn ? M_WHITE_QUEEN_SIDE_ROOK_START :
-                M_BLACK_QUEEN_SIDE_ROOK_START;
-            rook_to = board->turn ? M_WHITE_QUEEN_SIDE_ROOK_TARGET :
-                M_BLACK_QUEEN_SIDE_ROOK_TARGET;
-            cb_write_piece(board, from, GPU_PTYPE_KING, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_KING, board->turn);
-            cb_write_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
-            cb_delete_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
-            break;
-        case GPU_MV_ENPASSANT:
-            direction = board->turn ? 8 : -8;
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_PAWN, board->turn);
-            cb_write_piece(board, to + direction, GPU_PTYPE_PAWN, !board->turn);
-            break;
-        case GPU_MV_KNIGHT_PROMO:
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_KNIGHT, board->turn);
-            break;
-        case GPU_MV_BISHOP_PROMO:
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_BISHOP, board->turn);
-            break;
-        case GPU_MV_ROOK_PROMO:
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_ROOK, board->turn);
-            break;
-        case GPU_MV_QUEEN_PROMO:
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_delete_piece(board, to, GPU_PTYPE_QUEEN, board->turn);
-            break;
-        case GPU_MV_KNIGHT_PROMO_CAPTURE:
-            cap_ptype = cb_hist_get_captured_piece(&old_ele.hist);
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_replace_piece(board, to, cap_ptype, !board->turn, GPU_PTYPE_KNIGHT, board->turn);
-            break;
-        case GPU_MV_BISHOP_PROMO_CAPTURE:
-            cap_ptype = cb_hist_get_captured_piece(&old_ele.hist);
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_replace_piece(board, to, cap_ptype, !board->turn, GPU_PTYPE_BISHOP, board->turn);
-            break;
-        case GPU_MV_ROOK_PROMO_CAPTURE:
-            cap_ptype = cb_hist_get_captured_piece(&old_ele.hist);
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_replace_piece(board, to, cap_ptype, !board->turn, GPU_PTYPE_ROOK, board->turn);
-            break;
-        case GPU_MV_QUEEN_PROMO_CAPTURE:
-            cap_ptype = cb_hist_get_captured_piece(&old_ele.hist);
-            cb_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
-            cb_replace_piece(board, to, cap_ptype, !board->turn, GPU_PTYPE_QUEEN, board->turn);
-            break;
+
+    /* Handle enpassant separately (it's rare so divergence is fine). */
+    if (flag == GPU_MV_ENPASSANT) {
+        direction = board->turn == GPU_WHITE ? 8 : -8;
+        gpu_write_piece(board, from, GPU_PTYPE_PAWN, board->turn);
+        gpu_delete_piece(board, to, GPU_PTYPE_PAWN, board->turn);
+        gpu_write_piece(board, to + direction, GPU_PTYPE_PAWN, !board->turn);
+        return;
     }
-#endif
+
+    /* Read the piece type from the board. */
+    ptype = gpu_ptype_at_sq(board, to);
+    cap_ptype = gpu_state_enp_available(old_ele.state) ?
+        GPU_PTYPE_EMPTY : gpu_state_get_captured_piece(old_ele.state);
+
+    /* Piece type changes if there was a promotion. */
+    from_ptype = flag & (0b1000 << 12) ? GPU_PTYPE_PAWN : ptype;
+
+    /* Move the pieces back into place. */
+    gpu_delete_piece(board, to, ptype, board->turn);
+    if (cap_ptype != GPU_PTYPE_EMPTY)
+        gpu_write_piece(board, to, cap_ptype, board->turn);
+    gpu_write_piece(board, from, from_ptype, board->turn);
+
+    /* Extra work for king side castling. */
+    if (flag == GPU_MV_KING_SIDE_CASTLE) {
+        rook_from = board->turn ? M_WHITE_KING_SIDE_ROOK_START :
+            M_BLACK_KING_SIDE_ROOK_START;
+        rook_to = board->turn ? M_WHITE_KING_SIDE_ROOK_TARGET :
+            M_BLACK_KING_SIDE_ROOK_TARGET;
+        gpu_write_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
+        gpu_delete_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
+    }
+
+    /* Extra work for queen side castling. */
+    if (flag == GPU_MV_QUEEN_SIDE_CASTLE) {
+        rook_from = board->turn ? M_WHITE_QUEEN_SIDE_ROOK_START :
+            M_BLACK_QUEEN_SIDE_ROOK_START;
+        rook_to = board->turn ? M_WHITE_QUEEN_SIDE_ROOK_TARGET :
+            M_BLACK_QUEEN_SIDE_ROOK_TARGET;
+        gpu_write_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
+        gpu_delete_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
+    }
 }
 
