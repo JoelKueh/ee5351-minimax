@@ -12,20 +12,21 @@ OUT_DIR=out
 SRC_DIR=src
 TEST_DIR=bench
 
-INCLUDE_DIRS= -I/usr/local/cuda/include -I./include/cblib
+INCLUDE_DIRS= -I/usr/local/cuda/include -I./include/cblib -I./include/utils
 LD_FLAGS = -lcudart -L/usr/local/cuda/lib64
 
 ALL_FLAGS = $(NVCC_FLAGS) $(INCLUDE_DIRS) $(OPT_LEVEL)
 
 .PHONY: default clean debug
-default: $(BIN_DIR)/cibyl
+default: $(BIN_DIR)/debug
 
 debug: NVCC_FLAGS += -g
 debug: CFLAGS := $(filter-out $(OPT_LEVEL), $(CFLAGS))
 debug: default
 
 CBLIB_SRCS = src/cblib/cb_const.c src/cblib/cb_dbg.c src/cblib/cb_gen.c \
-	     src/cblib/cb_lib.c src/cblib/cb_magical.c src/cblib/cb_normal.c
+	     src/cblib/cb_lib.c src/cblib/cb_magical.c src/cblib/cb_normal.c \
+		 src/perft_cpu.c
 CBLIB_OBJS = $(CBLIB_SRCS:src/%.c=obj/%.o)
 CBLIB_DEPS = $(CBLIB_OBJS:%.o=%.d)
 -include $(CBLIB_DEPS)
@@ -42,7 +43,7 @@ CUDA_DEPS = $(CUDA_OBJS:%.cu.o=%.cu.d)
 .PHONY: cblib
 cblib: $(CBLIB_OBJS)
 
-$(BIN_DIR)/cibyl: obj/main.o $(CBLIB_OBJS) $(CUDA_OBJS)
+$(BIN_DIR)/debug: obj/debug.o $(CBLIB_OBJS) $(CUDA_OBJS)
 	@mkdir -p $(dir $@)
 	$(NVCC) $(CFLAGS) -o $@ $^
 
