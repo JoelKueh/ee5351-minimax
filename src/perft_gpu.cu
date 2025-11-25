@@ -2,14 +2,27 @@
 #include <inttypes.h>
 
 #include "crosstime.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "cb_lib.h"
 #include "cb_move.h"
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #include "perft_gpu.h"
 #include "cblib_gpu/gpu_types.cuh"
 #include "cblib_gpu/gpu_board.cuh"
 #include "cblib_gpu/gpu_move.cuh"
 #include "cblib_gpu/gpu_gen.cuh"
+
+uint64_t *gpu_bishop_atk_ptrs_h[64];
+uint64_t *gpu_rook_atk_ptrs_h[64];
 
 __global__ void perft_gpu_slow_kernel(
         gpu_search_struct_node_t *ss_nodes, gpu_board_t *boards,
@@ -34,18 +47,22 @@ __global__ void perft_gpu_slow_kernel(
     board = *boards;
 
     /* Search through the tree. */
+    ss.depth = 0;
+    ss.offset = 0;
     for (int d = 0; d < depth; d++) {
+        printf("%d\n", ss.offset);
         gpu_gen_board_tables(&board, &state);
         gpu_gen_moves(&ss, &board, &state);
     }
+    printf("%d\n", ss.offset);
 
     /* Loop through the generated moves and add them to the output. */
     for (int i = 0; i < ss.offset; i++) {
         moves[i] = ss.positions[0].moves[0][i];
         counts[i] = 1;
     }
+    *num_moves_from_root = ss.offset;
 
-    /* Hooray, we're done! */
     return;
 }
 
@@ -125,6 +142,8 @@ int perft_gpu_slow(cb_board_t *board, int depth)
     cudaDeviceSynchronize();
 
     /* Loop over the output. */
+    printf("%" PRIu64 "\n", h_num_moves_from_root);
+    return 0;
     for (i = 0; i < h_num_moves_from_root; i++) {
         mv = h_perft_moves[i];
         total += h_perft_counts[i];

@@ -1,5 +1,6 @@
 
-/* TODO: This file is pretty much just make-unmake. */
+#ifndef GPU_LIB_H
+#define GPU_LIB_H
 
 #include <threads.h>
 
@@ -10,7 +11,7 @@
 #include "gpu_history.cuh"
 #include "gpu_search_struct.cuh"
 
-__device__ void gpu_make(
+__device__ static inline void gpu_make(
         gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board,
         const gpu_move_t mv)
 {
@@ -161,4 +162,6 @@ __device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
         gpu_delete_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
     }
 }
+
+#endif /* GPU_LIB_H */
 
