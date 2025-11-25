@@ -8,6 +8,9 @@ extern "C" {
 #endif
 
 #include <cb_types.h>
+
+void cblib_gpu_init();
+void cblib_gpu_free();
 int perft_gpu_slow(cb_board_t *board, int depth);
 
 #ifdef __cplusplus

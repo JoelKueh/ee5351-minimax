@@ -226,11 +226,14 @@ int main()
         goto out;
     }
 
+    /* Set up the gpu tables. */
+    cblib_gpu_init();
+
     /* Set up the initial board state. */
     if (cb_board_init(&err, &board)) {
         fprintf(stderr, "cb_board_init: %s\n", err.desc);
         result = 1;
-        goto out;
+        goto out_free_tables;
     }
 
     if (cb_board_from_fen(&err, &board, default_fen)) {
@@ -254,6 +257,7 @@ out_free_command:
 out_free_board:
     cb_board_free(&board);
 out_free_tables:
+    cblib_gpu_free();
     cb_tables_free();
 out:
     return result;

@@ -272,10 +272,23 @@ __device__ static inline void gpu_append_simple_moves(
             gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
         }
     }
+    while (knights) {
+        sq = gpu_pop_rbit(&knights);
+        mvmsk = gpu_read_knight_atk_msk(sq);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= state->check_blocks;
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
+    }
 
     /* Generate bishop and queen moves. */
     uint64_t bishops = GPU_BB_B_AND_Q(board->bb, board->turn);
-    while (bishops) {
+    pinned = bishops & state->pinned;
+    bishops ^= pinned;
+    while (pinned) {
         sq = gpu_pop_rbit(&pinned);
         mvmsk = gpu_read_bishop_atk_msk(sq, board->bb.occ);
         mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
@@ -287,10 +300,23 @@ __device__ static inline void gpu_append_simple_moves(
             gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
         }
     }
+    while (bishops) {
+        sq = gpu_pop_rbit(&bishops);
+        mvmsk = gpu_read_bishop_atk_msk(sq, board->bb.occ);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= state->check_blocks;
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
+    }
 
     /* Generate rook and queen moves. */
     uint64_t rooks = GPU_BB_R_AND_Q(board->bb, board->turn);
-    while (rooks) {
+    pinned = rooks & state->pinned;
+    rooks ^= pinned;
+    while (pinned) {
         sq = gpu_pop_rbit(&pinned);
         mvmsk = gpu_read_rook_atk_msk(sq, board->bb.occ);
         mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
@@ -302,11 +328,22 @@ __device__ static inline void gpu_append_simple_moves(
             gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
         }
     }
+    while (rooks) {
+        sq = gpu_pop_rbit(&rooks);
+        mvmsk = gpu_read_rook_atk_msk(sq, board->bb.occ);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= state->check_blocks;
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
+    }
 
     /* Generate king moves. */
     uint64_t kings = GPU_BB_KINGS(board->bb, board->turn);
     while (kings) {
-        sq = gpu_pop_rbit(&pinned);
+        sq = gpu_pop_rbit(&kings);
         mvmsk = gpu_read_king_atk_msk(sq);
         mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
         mvmsk &= ~state->threats;
@@ -422,13 +459,9 @@ __device__ static inline void gpu_gen_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     gpu_append_pawn_moves(ss, board, state);
-    printf("%d\n", ss->offset);
     gpu_append_simple_moves(ss, board, state);
-    printf("%d\n", ss->offset);
     gpu_append_castle_moves(ss, board, state);
-    printf("%d\n", ss->offset);
     gpu_append_enp_moves(ss, board, state);
-    printf("%d\n", ss->offset);
 }
 
 __device__ static inline uint64_t gpu_gen_threats(
@@ -516,7 +549,7 @@ __device__ static inline uint64_t gpu_gen_check_blocks(
  * I'd recommend looking this one up on Chess Programming Wiki.
  */
 __device__ static inline uint64_t gpu_xray_bishop_attacks(
-        uint64_t occ, uint64_t blockers, uint64_t sq)
+        uint64_t occ, uint64_t blockers, uint8_t sq)
 {
     uint64_t attacks = gpu_read_bishop_atk_msk(sq, occ);
     blockers &= attacks;
@@ -528,7 +561,7 @@ __device__ static inline uint64_t gpu_xray_bishop_attacks(
  * I'd recommend looking this one up on Chess Programming Wiki.
  */
 __device__ static inline uint64_t gpu_xray_rook_attacks(
-        uint64_t occ, uint64_t blockers, uint64_t sq)
+        uint64_t occ, uint64_t blockers, uint8_t sq)
 {
     uint64_t attacks = gpu_read_rook_atk_msk(sq, occ);
     blockers &= attacks;

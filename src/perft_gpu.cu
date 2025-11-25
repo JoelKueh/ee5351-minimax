@@ -20,9 +20,20 @@ extern "C" {
 #include "cblib_gpu/gpu_board.cuh"
 #include "cblib_gpu/gpu_move.cuh"
 #include "cblib_gpu/gpu_gen.cuh"
+#include "cblib_gpu/gpu_tables.cuh"
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
 uint64_t *gpu_rook_atk_ptrs_h[64];
+
+void cblib_gpu_init()
+{
+    gpu_init_tables();
+}
+
+void cblib_gpu_free()
+{
+    gpu_free_tables();
+}
 
 __global__ void perft_gpu_slow_kernel(
         gpu_search_struct_node_t *ss_nodes, gpu_board_t *boards,
@@ -50,11 +61,9 @@ __global__ void perft_gpu_slow_kernel(
     ss.depth = 0;
     ss.offset = 0;
     for (int d = 0; d < depth; d++) {
-        printf("%d\n", ss.offset);
         gpu_gen_board_tables(&board, &state);
         gpu_gen_moves(&ss, &board, &state);
     }
-    printf("%d\n", ss.offset);
 
     /* Loop through the generated moves and add them to the output. */
     for (int i = 0; i < ss.offset; i++) {
@@ -82,7 +91,7 @@ int perft_gpu_slow(cb_board_t *board, int depth)
     gpu_board_t h_board;
     uint64_t h_perft_counts[CB_MAX_NUM_MOVES];
     cb_move_t h_perft_moves[CB_MAX_NUM_MOVES];
-    uint64_t h_num_moves_from_root;
+    uint8_t h_num_moves_from_root;
     gpu_search_struct_node_t *d_ss_nodes;
     gpu_board_t *d_board;
     uint64_t *d_perft_counts;
@@ -125,6 +134,8 @@ int perft_gpu_slow(cb_board_t *board, int depth)
     h_board.bb.piece[GPU_PTYPE_ROOK] =
         board->bb.piece[CB_WHITE][CB_PTYPE_ROOK] | board->bb.piece[CB_BLACK][CB_PTYPE_ROOK] |
         board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
+    h_board.bb.piece[4] =
+        board->bb.piece[CB_WHITE][CB_PTYPE_KING] | board->bb.piece[CB_BLACK][CB_PTYPE_KING];
 
     /* Copy the data to the GPU. */
     cudaMemcpy(d_board, &h_board, sizeof(gpu_board_t), cudaMemcpyHostToDevice);
@@ -142,8 +153,7 @@ int perft_gpu_slow(cb_board_t *board, int depth)
     cudaDeviceSynchronize();
 
     /* Loop over the output. */
-    printf("%" PRIu64 "\n", h_num_moves_from_root);
-    return 0;
+    total = 0;
     for (i = 0; i < h_num_moves_from_root; i++) {
         mv = h_perft_moves[i];
         total += h_perft_counts[i];

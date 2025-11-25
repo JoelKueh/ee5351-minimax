@@ -2,6 +2,9 @@
 #ifndef GPU_TABLES_H
 #define GPU_TABLES_H
 
+/* TODO: Remove me. */
+#include <inttypes.h>
+
 #include "gpu_const.cuh"
 #include "gpu_tables.cuh"
 
@@ -40,8 +43,8 @@ __constant__ uint64_t d_knight_atks[64];
 __constant__ uint64_t d_king_atks[64];
 __constant__ uint64_t d_bishop_occ_mask[64];
 __constant__ uint64_t d_rook_occ_mask[64];
-__constant__ uint64_t d_num_bishop_bits[64];
-__constant__ uint64_t d_num_rook_bits[64];
+__constant__ uint8_t d_num_bishop_bits[64];
+__constant__ uint8_t d_num_rook_bits[64];
 __constant__ uint64_t d_bishop_magics[64];
 __constant__ uint64_t d_rook_magics[64];
 __constant__ uint64_t *d_bishop_atks[64];
@@ -72,22 +75,25 @@ static inline void gpu_init_tables()
     cudaMemcpyToSymbol(d_rook_occ_mask, rook_occ_mask, 64 * sizeof(uint64_t));
     cudaMemcpyToSymbol(d_num_bishop_bits, NUM_BISHOP_BITS, 64 * sizeof(uint8_t));
     cudaMemcpyToSymbol(d_num_rook_bits, NUM_ROOK_BITS, 64 * sizeof(uint8_t));
-    cudaMemcpyToSymbol(d_bishop_magics, BISHOP_MAGICS, 64 * sizeof(uint8_t));
-    cudaMemcpyToSymbol(d_rook_magics, ROOK_MAGICS, 64 * sizeof(uint8_t));
+    cudaMemcpyToSymbol(d_bishop_magics, BISHOP_MAGICS, 64 * sizeof(uint64_t));
+    cudaMemcpyToSymbol(d_rook_magics, ROOK_MAGICS, 64 * sizeof(uint64_t));
     cudaMemcpyToSymbol(d_to_from_table, to_from_table, 64 * 64 * sizeof(uint64_t));
 
     for (int sq = 0; sq < 64; sq++) {
         cudaMalloc((void**)&gpu_bishop_atk_ptrs_h[sq],
-                1 << NUM_BISHOP_BITS[sq] * sizeof(uint64_t));
+                (1 << NUM_BISHOP_BITS[sq]) * sizeof(uint64_t));
+        cudaMemcpy(gpu_bishop_atk_ptrs_h[sq], bishop_atks[sq],
+                (1 << NUM_BISHOP_BITS[sq]) * sizeof(uint64_t), cudaMemcpyHostToDevice);
     }
-    cudaMemcpy(d_bishop_atks, gpu_bishop_atk_ptrs_h,
-            64 * sizeof(uint64_t*), cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(d_bishop_atks, gpu_bishop_atk_ptrs_h, 64 * sizeof(uint64_t*));
 
     for (int sq = 0; sq < 64; sq++) {
-        cudaMalloc((void**)&gpu_rook_atk_ptrs_h[sq], 1 << NUM_ROOK_BITS[sq] * sizeof(uint64_t));
+        cudaMalloc((void**)&gpu_rook_atk_ptrs_h[sq],
+                (1 << NUM_ROOK_BITS[sq]) * sizeof(uint64_t));
+        cudaMemcpy(gpu_rook_atk_ptrs_h[sq], bishop_atks[sq],
+                (1 << NUM_ROOK_BITS[sq]) * sizeof(uint64_t), cudaMemcpyHostToDevice);
     }
-    cudaMemcpy(d_rook_atks, gpu_rook_atk_ptrs_h,
-            64 * sizeof(uint64_t*), cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(d_rook_atks, gpu_rook_atk_ptrs_h, 64 * sizeof(uint64_t*));
 }
 
 static inline void gpu_free_tables()
