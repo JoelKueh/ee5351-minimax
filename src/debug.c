@@ -8,6 +8,7 @@
 #include "cb_lib.h"
 #include "cb_dbg.h"
 #include "perft_cpu.h"
+#include "perft_gpu.h"
 
 #define MAX_COMMAND_LEN 512
 #define DEFAULT_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -156,7 +157,11 @@ int handle_perft(cb_board_t *board)
         printf("Depth must be a base 10 integer");
     }
 
+#if 0
     return perft_cheat(board, depth);
+#else
+    return perft_gpu_slow(board, depth);
+#endif
 }
 
 int handle_go(cb_board_t *board)
@@ -213,7 +218,7 @@ int main()
     printf("kchess debug version 0.0.1 by Joel Kuehne\n");
 
     /* Set up board tables. */
-    err.num = 0;
+    err.num = CB_EOK;
     cb_tables_init(&err);
     if (err.num != 0) {
         fprintf(stderr, "cb_table_init_once: %s\n", err.desc);

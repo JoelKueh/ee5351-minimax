@@ -1,4 +1,7 @@
 
+#ifndef GPU_GEN_H
+#define GPU_GEN_H
+
 #include <string.h>
 
 #include "gpu_tables.cuh"
@@ -8,6 +11,7 @@
 #include "gpu_history.cuh"
 #include "gpu_bitutil.cuh"
 #include "gpu_search_struct.cuh"
+#include "gpu_ray_gen.cuh"
 
 /* TODO: Move generation task. This is likely the hardest task.
  *
@@ -19,6 +23,13 @@
  *
  * All in all, you will need to implmement
  */
+
+__device__ static inline uint64_t gpu_pin_adjust(gpu_board_t *__restrict__ board,
+        gpu_state_tables_t *__restrict__ state, uint8_t sq, uint64_t moves)
+{
+    uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
+    return gpu_ray_through_sq2(king_sq, sq) & moves;
+}
 
 __device__ static inline uint64_t gpu_pawn_smear(
         uint64_t pawns, gpu_color_t color)
@@ -48,6 +59,34 @@ __device__ static inline uint64_t gpu_pawn_smear_right(
     return color == GPU_WHITE ?
         (pawns >> 7 & ~BB_LEFT_COL) :
         (pawns << 7 & ~BB_RIGHT_COL);
+}
+
+__device__ static inline void gpu_append_pinned_pawn_moves(
+        gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board,
+        gpu_state_tables_t *__restrict__ state, uint64_t pinned)
+{
+    while (pinned) {
+        uint64_t mvmsk = 0;
+        uint8_t sq = gpu_pop_rbit(&pinned);
+
+        uint8_t target;
+        gpu_mv_flag_t flags;
+
+        /* Generate the move mask. */
+        mvmsk |= gpu_pawn_smear(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
+        mvmsk |= gpu_pawn_smear_forward(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
+        mvmsk |= gpu_pawn_smear_forward(mvmsk, board->turn) &
+            (board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE);
+        mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
+
+        /* Append all of the moves to the list. */
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            flags = target == sq + 16 || target == sq - 16 ? GPU_MV_DOUBLE_PAWN_PUSH : flags;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
+    }
 }
 
 __device__ static inline void gpu_append_pushes(
@@ -166,8 +205,8 @@ __device__ static inline void gpu_append_pawn_moves(
 
     /* First handle all pinned pawns. */
     uint64_t pinned = pawns & state->pinned;
-
     pawns &= ~state->pinned;
+    gpu_append_pinned_pawn_moves(ss, board, state, pinned);
 
     /* Generate left attacks for pawns. */
     uint64_t left_smear = gpu_pawn_smear_left(pawns, board->turn);
@@ -212,33 +251,67 @@ __device__ void gpu_append_simple_moves(
     uint8_t sq, target;
     gpu_mv_flag_t flags;
     uint64_t mvmsk;
-    uint64_t pieces = board->bb.occ & (board->turn ? board->bb.color : ~board->bb.color);
+    uint64_t pinned = 0;
 
-    /* Generate pawn moves (and adjust for pins). */
-    uint64_t pawns = GPU_BB_PAWNS(board->bb, board->turn);
-
-    /* Generate knight moves (and adjust for pins). */
+    /* Generate knight moves. */
     uint64_t knights = GPU_BB_KNIGHTS(board->bb, board->turn);
-    while (knights) {
-
+    pinned = knights & state->pinned;
+    knights ^= pinned;
+    while (pinned) {
+        sq = gpu_pop_rbit(&pinned);
+        mvmsk = gpu_read_knight_atk_msk(sq);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= state->check_blocks;
+        mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
     }
 
     /* Generate bishop and queen moves. */
     uint64_t bishops = GPU_BB_B_AND_Q(board->bb, board->turn);
     while (bishops) {
-
+        sq = gpu_pop_rbit(&pinned);
+        mvmsk = gpu_read_bishop_atk_msk(sq, board->bb.occ);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= state->check_blocks;
+        mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
     }
 
     /* Generate rook and queen moves. */
     uint64_t rooks = GPU_BB_R_AND_Q(board->bb, board->turn);
     while (rooks) {
-
+        sq = gpu_pop_rbit(&pinned);
+        mvmsk = gpu_read_rook_atk_msk(sq, board->bb.occ);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= state->check_blocks;
+        mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
     }
 
     /* Generate king moves. */
     uint64_t kings = GPU_BB_KINGS(board->bb, board->turn);
     while (kings) {
-
+        sq = gpu_pop_rbit(&pinned);
+        mvmsk = gpu_read_king_atk_msk(sq);
+        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+        mvmsk &= ~state->threats;
+        while (mvmsk) {
+            target = gpu_pop_rbit(&mvmsk);
+            flags = (UINT64_C(1) << target) & board->bb.occ ? GPU_MV_CAPTURE : GPU_MV_QUIET;
+            gpu_ss_push_move(ss, gpu_mv_from_data(sq, target, flags));
+        }
     }
 }
 
@@ -306,7 +379,7 @@ __device__ void gpu_append_enp_moves(
     uint8_t enemy_sq = enp_sq + (board->turn == GPU_WHITE ? 8 : -8);
 
     /* Get all of the pieces that can enpassnt. */
-    uint64_t enp_sources = gpu_read_pawn_atk_msk(enp_sq, !board->turn)
+    uint64_t enp_sources = gpu_pawn_smear(UINT64_C(1) << enp_sq, !board->turn)
         & GPU_BB_PAWNS(board->bb, board->turn);
 
     /* Loop through the pieces that can enpassant and generate the moves. */
@@ -341,7 +414,7 @@ __device__ void gpu_append_enp_moves(
 }
 
 /* TODO: This one is pretty simple to change. */
-__device__ void cb_gen_moves(
+__device__ void gpu_gen_moves(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
@@ -355,7 +428,6 @@ __device__ static inline uint64_t gpu_gen_threats(
         gpu_board_t *__restrict__ board)
 {
     uint64_t threats;
-    uint8_t sq;
 
     /* Remove the king to allow pieces to "see through" it. */
     uint64_t occ = board->bb.occ ^ GPU_BB_KINGS(board->bb, board->turn);
@@ -378,7 +450,7 @@ __device__ static inline uint64_t gpu_gen_threats(
      * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
      */
     while (bishops) {
-        threats |= gpu_read_bishop_atk_msk(gpu_pop_rbit(&bishops), board->bb.occ);
+        threats |= gpu_read_bishop_atk_msk(gpu_pop_rbit(&bishops), occ);
     }
 
     /* Generate rook threats. */
@@ -387,7 +459,7 @@ __device__ static inline uint64_t gpu_gen_threats(
      * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
      */
     while (rooks) {
-        threats |= gpu_read_rook_atk_msk(gpu_pop_rbit(&rooks), board->bb.occ);
+        threats |= gpu_read_rook_atk_msk(gpu_pop_rbit(&rooks), occ);
     }
 
     return threats;
@@ -405,7 +477,7 @@ __device__ static inline uint64_t gpu_gen_checks(
 
     /* Build the list of pieces that check the king. */
     uint8_t king_sq = gpu_peek_rbit(king);
-    uint64_t checks = gpu_read_pawn_atk_msk(king_sq, board->turn)
+    uint64_t checks = gpu_pawn_smear(UINT64_C(1) << king_sq, board->turn)
         & GPU_BB_PAWNS(board->bb, !board->turn);
     checks |= gpu_read_knight_atk_msk(king_sq)
         & GPU_BB_KNIGHTS(board->bb, !board->turn);
@@ -463,7 +535,7 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
     uint64_t blockers = GPU_BB_COLOR(board->bb, board->turn);
     uint64_t pinner;
     uint64_t pinned;
-    uint8_t sq, dir;
+    uint8_t sq;
 
     /* Get all of the first pinners. */
     pinner = gpu_xray_bishop_attacks(board->bb.occ, blockers, king_sq)
@@ -480,6 +552,8 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
         sq = gpu_pop_rbit(&pinner);
         pinned |= gpu_read_tf_table(sq, king_sq) & blockers;
     }
+
+    return pinned;
 }
 
 /* TODO: Move Generation Task.
@@ -488,8 +562,8 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
  * In particular, I think we will need to take a look at the way I handle
  * pins. It is kindof stupid. See notes above and in gpu_types.h.
  */
-__device__ void gpu_gen_board_tables(gpu_state_tables_t *__restrict__ state,
-        gpu_board_t *__restrict__ board)
+__device__ void gpu_gen_board_tables(gpu_board_t *__restrict__ board,
+        gpu_state_tables_t *__restrict__ state)
 {
     state->threats = gpu_gen_threats(board);
     state->checks = gpu_gen_checks(board, state->threats);
@@ -497,3 +571,4 @@ __device__ void gpu_gen_board_tables(gpu_state_tables_t *__restrict__ state,
     state->pinned = gpu_gen_pins(board);
 }
 
+#endif /* GPU_GEN_H */

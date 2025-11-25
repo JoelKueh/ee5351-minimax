@@ -34,8 +34,8 @@ CBLIB_DEPS = $(CBLIB_OBJS:%.o=%.d)
 .PHONY: cblib
 cblib: $(CBLIB_OBJS)
 
-CUDA_SRCS = src/gpu_perft_arch2.cu src/cblib_gpu/gpu_tables.cu \
-		src/cblib_gpu/gpu_gen.cu src/cblib_gpu/gpu_lib.cu
+CUDA_SRCS = src/cblib_gpu/gpu_gen.cu src/cblib_gpu/gpu_lib.cu \
+			src/cblib_gpu/gpu_tables.cu src/perft_gpu.cu
 CUDA_OBJS = $(CUDA_SRCS:src/%.cu=obj/%.cu.o)
 CUDA_DEPS = $(CUDA_OBJS:%.cu.o=%.cu.d)
 -include $(CUDA_DEPS)
@@ -45,7 +45,7 @@ cblib: $(CBLIB_OBJS)
 
 $(BIN_DIR)/debug: obj/debug.o $(CBLIB_OBJS) $(CUDA_OBJS)
 	@mkdir -p $(dir $@)
-	$(NVCC) $(CFLAGS) -o $@ $^
+	$(NVCC) $(ALL_FLAGS) -o $@ $^
 
 obj/%.o: src/%.c
 	@mkdir -p $(dir $@)
@@ -53,7 +53,7 @@ obj/%.o: src/%.c
 
 obj/%.cu.o: src/%.cu
 	@mkdir -p $(dir $@)
-	$(NVCC) $(ALL_FLAGS) -MMD -MP -MF $(@:.o=.d) -c -o $@ $< 
+	$(NVCC) $(ALL_FLAGS) -dc -MMD -MP -MF $(@:.o=.d) -c -o $@ $< 
 
 clean:
 	rm -rf $(OBJ_DIR)/* $(BIN_DIR)/*

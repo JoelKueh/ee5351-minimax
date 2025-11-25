@@ -1,5 +1,6 @@
 
 #include "gpu_tables.cuh"
+#include "gpu_const.cuh"
 
 /* TODO: Task 1: Implement gpu table read functions.
  *
@@ -51,13 +52,6 @@ __device__ void gpu_init_tables()
 __device__ void gpu_free_tables()
 {
     /* TODO: Impelment me! Lots of frees here. */
-}
-
-__device__ uint64_t gpu_read_pawn_atk_msk(uint8_t sq, gpu_color_t color)
-{
-    return color == GPU_WHITE ?
-        (UINT64_C(1) << (sq - 9)) | (UINT64_C(1) << (sq - 7)) :
-        (UINT64_C(1) << (sq + 9)) | (UINT64_C(1) << (sq + 7));
 }
 
 __device__ uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ)
