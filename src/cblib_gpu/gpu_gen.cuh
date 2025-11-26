@@ -233,6 +233,7 @@ __device__ static inline void gpu_append_pawn_moves(
     /* Generate masks for pushing pawns. */
     uint64_t forward_smear = gpu_pawn_smear_forward(pawns, board->turn);
     uint64_t forward_moves = forward_smear & ~board->bb.occ;
+    uint64_t double_smear = gpu_pawn_smear_forward(forward_moves, board->turn);
     forward_moves &= state->check_blocks;
     uint64_t forward_promos = forward_moves & (BB_TOP_ROW | BB_BOTTOM_ROW);
     forward_moves ^= forward_promos;
@@ -240,7 +241,6 @@ __device__ static inline void gpu_append_pawn_moves(
     gpu_append_forward_promos(ss, board, forward_promos);
 
     /* Smear the forward moves again to get the double pushes. */
-    uint64_t double_smear = gpu_pawn_smear_forward(forward_moves, board->turn);
     uint64_t double_moves = double_smear & ~board->bb.occ;
     double_moves &= board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE;
     double_moves &= state->check_blocks;

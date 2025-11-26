@@ -54,6 +54,7 @@ __global__ void perft_gpu_slow_kernel(
     board = *boards;
 
     /* TODO: Remove me. Print out initial board. */
+    printf("test\n");
     gpu_print_bitboard(&board);
 
     /* Search through the tree. */
@@ -146,17 +147,17 @@ int perft_gpu_slow(cb_board_t *board, int depth)
     h_board.turn = board->turn;
     h_board.bb.color = board->bb.color[CB_WHITE];
     h_board.bb.occ = board->bb.occ;
-    h_board.bb.piece[GPU_PTYPE_PAWN] =
+    h_board.bb.pawns = 
         board->bb.piece[CB_WHITE][CB_PTYPE_PAWN] | board->bb.piece[CB_BLACK][CB_PTYPE_PAWN];
-    h_board.bb.piece[GPU_PTYPE_KNIGHT] =
+    h_board.bb.knights = 
         board->bb.piece[CB_WHITE][CB_PTYPE_KNIGHT] | board->bb.piece[CB_BLACK][CB_PTYPE_KNIGHT];
-    h_board.bb.piece[GPU_PTYPE_BISHOP] =
+    h_board.bb.bishops = 
         board->bb.piece[CB_WHITE][CB_PTYPE_BISHOP] | board->bb.piece[CB_BLACK][CB_PTYPE_BISHOP] |
         board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
-    h_board.bb.piece[GPU_PTYPE_ROOK] =
+    h_board.bb.rooks = 
         board->bb.piece[CB_WHITE][CB_PTYPE_ROOK] | board->bb.piece[CB_BLACK][CB_PTYPE_ROOK] |
         board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
-    h_board.bb.piece[4] =
+    h_board.bb.kings = 
         board->bb.piece[CB_WHITE][CB_PTYPE_KING] | board->bb.piece[CB_BLACK][CB_PTYPE_KING];
 
     /* Copy the data to the GPU. */

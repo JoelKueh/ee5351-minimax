@@ -51,9 +51,6 @@ __device__ static inline void gpu_make(
 
     /* If a piece was captured, set it in the board state. */
     gpu_state_set_captured_piece(&new_state, cap_ptype);
-    /* TODO: Remove me. */
-    if (cap_ptype != 6)
-        printf("cap_ptpye: %d\n", gpu_state_get_captured_piece(new_state));
     gpu_state_decay_castle_rights(&new_state, board->turn, to, from);
 
     /* Piece type changes if this is a promotion. Remember that
@@ -64,7 +61,7 @@ __device__ static inline void gpu_make(
 
     /* Move the piece from its previous position to its new position. */
     if (cap_ptype != GPU_PTYPE_EMPTY)
-        gpu_delete_piece(board, to, ptype, board->turn);
+        gpu_delete_piece(board, to, cap_ptype, board->turn);
     gpu_write_piece(board, to, new_ptype, board->turn);
     gpu_delete_piece(board, from, ptype, board->turn);
 
@@ -141,12 +138,6 @@ __device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 
     /* Move the pieces back into place. */
     gpu_delete_piece(board, to, ptype, board->turn);
-    /* TODO: Remove me. */
-    printf("to: %d, from: %d\n", to, from);
-    printf("kings: %" PRIu64 "\n", GPU_BB_KINGS(board->bb, board->turn));
-    printf("ptpye: %d\n", ptype);
-    printf("from_ptpye: %d\n", from_ptype);
-    printf("cap_ptpye: %d\n", cap_ptype);
     if (cap_ptype != GPU_PTYPE_EMPTY)
         gpu_write_piece(board, to, cap_ptype, !board->turn);
     gpu_write_piece(board, from, from_ptype, board->turn);

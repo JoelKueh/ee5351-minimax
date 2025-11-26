@@ -18,3 +18,9 @@ List of notes while I try to fix move generation.
 - Captures are broken.
   - Looks like the problem is with unmake.
 - Kings are being duplicated, this might be a sign that kings are being taken.
+  - Wasn't a sign that kings were being taken. Problem with gpu\_write\_piece().
+- Problem with generating moves out of check.
+  - Looks like a problem with double pawn pushes. Wouldn't be the first time that I've seen that.
+  - Problem was that a double pawn push can block a check even if the single pawn push doesn't.
+- More problems with duplicating pieces.
+  - Pawn takes queen seems to be the root of a lot of the trouble.

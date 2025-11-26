@@ -32,8 +32,8 @@ __device__ void gpu_prep_bb_byte(char *buf, uint64_t bb, uint64_t rank) {
 __device__ void gpu_print_bitboard(gpu_board_t *board)
 {
     const char *wheaders[] = { "PAWN", "KNIGHT", "BISHOP", "ROOK", "KING", "COLOR", "OCC" };
-    int i, j;
     char byte[PRINT_BUF_LEN];
+    int i;
 
     /* Print white pieces. */
     printf("\n");
@@ -44,10 +44,16 @@ __device__ void gpu_print_bitboard(gpu_board_t *board)
         printf("===============  ");
     printf("\n");
     for (i = 0; i < 8; i++) {
-        for (j = 0; j < 5; j++) {
-            gpu_prep_bb_byte(byte, board->bb.piece[j], i);
-            printf("%s  ", byte);
-        }
+        gpu_prep_bb_byte(byte, board->bb.pawns, i);
+        printf("%s  ", byte);
+        gpu_prep_bb_byte(byte, board->bb.knights, i);
+        printf("%s  ", byte);
+        gpu_prep_bb_byte(byte, board->bb.bishops, i);
+        printf("%s  ", byte);
+        gpu_prep_bb_byte(byte, board->bb.rooks, i);
+        printf("%s  ", byte);
+        gpu_prep_bb_byte(byte, board->bb.kings, i);
+        printf("%s  ", byte);
         gpu_prep_bb_byte(byte, board->bb.color, i);
         printf("%s  ", byte);
         gpu_prep_bb_byte(byte, board->bb.occ, i);

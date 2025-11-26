@@ -10,19 +10,23 @@
 
 /* Macros for reading pieces in the board. */
 #define GPU_BB_COLOR(b, c)   (c ? b.color : b.occ & ~b.color);
-#define GPU_BB_PAWNS(b, c)   (b.piece[0] & (c ? b.color : ~b.color))
-#define GPU_BB_KNIGHTS(b, c) (b.piece[1] & (c ? b.color : ~b.color))
-#define GPU_BB_B_AND_Q(b, c) (b.piece[2] & (c ? b.color : ~b.color)) /* Bishops and Queens. */
-#define GPU_BB_R_AND_Q(b, c) (b.piece[3] & (c ? b.color : ~b.color)) /* Rooks and Queens. */
-#define GPU_BB_BISHOPS(b, c) (b.piece[2] & ~b.piece[3] & (c ? b.color : ~b.color))
-#define GPU_BB_ROOKS(b, c)   (b.piece[3] & ~b.piece[2] & (c ? b.color : ~b.color))
-#define GPU_BB_QUEENS(b, c)  (b.piece[2] & b.piece[3] & (c ? b.color : ~b.color))
-#define GPU_BB_KINGS(b, c)   (b.piece[4] & (c ? b.color : ~b.color))
+#define GPU_BB_PAWNS(b, c)   (b.pawns & (c ? b.color : ~b.color))
+#define GPU_BB_KNIGHTS(b, c) (b.knights & (c ? b.color : ~b.color))
+#define GPU_BB_B_AND_Q(b, c) (b.bishops & (c ? b.color : ~b.color)) /* Bishops and Queens. */
+#define GPU_BB_R_AND_Q(b, c) (b.rooks & (c ? b.color : ~b.color)) /* Rooks and Queens. */
+#define GPU_BB_BISHOPS(b, c) (b.bishops & ~b.rooks & (c ? b.color : ~b.color))
+#define GPU_BB_ROOKS(b, c)   (b.rooks & ~b.bishops & (c ? b.color : ~b.color))
+#define GPU_BB_QUEENS(b, c)  (b.bishops & b.rooks & (c ? b.color : ~b.color))
+#define GPU_BB_KINGS(b, c)   (b.kings & (c ? b.color : ~b.color))
 
 /* Board Representation. */
 typedef struct {
-    uint64_t color;         /**< Bitmasks for colored pieces. */
-    uint64_t piece[5];      /**< A set of bitmasks for piece types. */
+    uint64_t color;         /**< Bitmask of all white pieces. */
+    uint64_t pawns;         /**< Bitmask of all pawns. */
+    uint64_t knights;       /**< Bitmask of all knights. */
+    uint64_t bishops;       /**< Bitmask of all bishops. */
+    uint64_t rooks;         /**< Bitmask of all rooks. */
+    uint64_t kings;         /**< Bitmask of all kings. */
     uint64_t occ;           /**< Occupancy bitmask. */
 } gpu_bitboard_t;
 

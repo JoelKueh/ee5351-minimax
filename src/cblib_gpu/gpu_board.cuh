@@ -6,22 +6,19 @@
 #include <stdbool.h>
 
 #include "gpu_types.cuh"
+#include "gpu_dbg.cuh"
 
 __device__ static inline gpu_ptype_t gpu_ptype_at_sq(
         const gpu_board_t *__restrict__ board, uint8_t sq)
 {
     gpu_ptype_t ptype = GPU_PTYPE_EMPTY;
 
-    ptype = board->bb.piece[GPU_PTYPE_PAWN] & (UINT64_C(1) << sq) ?
-        GPU_PTYPE_PAWN : ptype;
-    ptype = board->bb.piece[GPU_PTYPE_KNIGHT] & (UINT64_C(1) << sq) ?
-        GPU_PTYPE_KNIGHT : ptype;
-    ptype = board->bb.piece[GPU_PTYPE_BISHOP] & (UINT64_C(1) << sq) ?
-        GPU_PTYPE_BISHOP : ptype;
-    ptype = board->bb.piece[GPU_PTYPE_ROOK] & (UINT64_C(1) << sq) ?
+    ptype = board->bb.pawns & (UINT64_C(1) << sq) ? GPU_PTYPE_PAWN : ptype;
+    ptype = board->bb.knights & (UINT64_C(1) << sq) ? GPU_PTYPE_KNIGHT : ptype;
+    ptype = board->bb.bishops & (UINT64_C(1) << sq) ? GPU_PTYPE_BISHOP : ptype;
+    ptype = board->bb.rooks & (UINT64_C(1) << sq) ?
         (ptype == GPU_PTYPE_BISHOP ? GPU_PTYPE_QUEEN : GPU_PTYPE_ROOK) : ptype;
-    ptype = board->bb.piece[4] & (UINT64_C(1) << sq) ?
-        GPU_PTYPE_KING : ptype;
+    ptype = board->bb.kings & (UINT64_C(1) << sq) ? GPU_PTYPE_KING : ptype;
 
     return ptype;
 }
@@ -48,19 +45,22 @@ __device__ static inline void gpu_write_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
-    /* Queens are split among bishop and rook bitboards. */
-    if (ptype == GPU_PTYPE_QUEEN) {
-        board->bb.piece[GPU_PTYPE_BISHOP] |= UINT64_C(1) << sq;
-        board->bb.piece[GPU_PTYPE_ROOK] |= UINT64_C(1) << sq;
-    } else if (ptype == GPU_PTYPE_KING) {
-        board->bb.piece[4] |= UINT64_C(1) << sq;
-    } else {
-        board->bb.piece[ptype] |= UINT64_C(1) << sq;
+    if (ptype == GPU_PTYPE_EMPTY) {
+        gpu_print_bitboard(board);
+        printf("square: %d, ptype: %d, pcolor: %d", sq, ptype, pcolor);
     }
 
+    /* Set the piece bitboards. */
+    board->bb.pawns |= ptype == GPU_PTYPE_PAWN ? UINT64_C(1) << sq : 0;
+    board->bb.knights |= ptype == GPU_PTYPE_KNIGHT ? UINT64_C(1) << sq : 0;
+    board->bb.bishops |= ptype == GPU_PTYPE_BISHOP || ptype == GPU_PTYPE_QUEEN
+        ? UINT64_C(1) << sq : 0;
+    board->bb.rooks |= ptype == GPU_PTYPE_ROOK || ptype == GPU_PTYPE_ROOK
+        ? UINT64_C(1) << sq : 0;
+    board->bb.kings |= ptype == GPU_PTYPE_KING ? UINT64_C(1) << sq : 0;
+
     /* Set the color and occupancy normal bitboards. */
-    if (pcolor == GPU_WHITE)
-        board->bb.color |= UINT64_C(1) << sq;
+    board->bb.color |= pcolor == GPU_WHITE ? UINT64_C(1) << sq : 0;
     board->bb.occ |= UINT64_C(1) << sq;
 }
 
@@ -68,30 +68,29 @@ __device__ static inline void gpu_delete_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
-    /* Queens are split among bishop and rook bitboards. */
-    if (ptype == GPU_PTYPE_QUEEN) {
-        board->bb.piece[GPU_PTYPE_BISHOP] &= ~(UINT64_C(1) << sq);
-        board->bb.piece[GPU_PTYPE_ROOK] &= ~(UINT64_C(1) << sq);
-    } else if (ptype == GPU_PTYPE_KING) {
-        board->bb.piece[4] &= ~(UINT64_C(1) << sq);
-    } else {
-        board->bb.piece[ptype] &= ~(UINT64_C(1) << sq);
-    }
+    /* Set the piece bitboards. */
+    board->bb.pawns &= ~(ptype == GPU_PTYPE_PAWN ? UINT64_C(1) << sq : 0);
+    board->bb.knights &= ~(ptype == GPU_PTYPE_KNIGHT ? UINT64_C(1) << sq : 0);
+    board->bb.bishops &= ~(ptype == GPU_PTYPE_BISHOP || ptype == GPU_PTYPE_QUEEN
+        ? UINT64_C(1) << sq : 0);
+    board->bb.rooks &= ~(ptype == GPU_PTYPE_ROOK || ptype == GPU_PTYPE_ROOK
+        ? UINT64_C(1) << sq : 0);
+    board->bb.kings &= ~(ptype == GPU_PTYPE_KING ? UINT64_C(1) << sq : 0);
 
     /* Set the color and occupancy normal bitboards. */
-    if (pcolor == GPU_WHITE)
-        board->bb.color &= ~(UINT64_C(1) << sq);
+    board->bb.color &= ~(pcolor == GPU_WHITE ? UINT64_C(1) << sq : 0);
     board->bb.occ &= ~(UINT64_C(1) << sq);
 }
 
 __device__ static inline void gpu_wipe_board(gpu_board_t *__restrict__ board)
 {
     board->bb.color = 0;
-    board->bb.piece[0] = 0;
-    board->bb.piece[1] = 0;
-    board->bb.piece[2] = 0;
-    board->bb.piece[3] = 0;
-    board->bb.piece[4] = 0;
+    board->bb.pawns = 0;
+    board->bb.knights = 0;
+    board->bb.bishops = 0;
+    board->bb.rooks = 0;
+    board->bb.kings = 0;
+    board->bb.occ = 0;
 }
 
 #endif /* GPU_BOARD_H */
