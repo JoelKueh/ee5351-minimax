@@ -55,7 +55,7 @@ __device__ static inline void gpu_write_piece(
     board->bb.knights |= ptype == GPU_PTYPE_KNIGHT ? UINT64_C(1) << sq : 0;
     board->bb.bishops |= ptype == GPU_PTYPE_BISHOP || ptype == GPU_PTYPE_QUEEN
         ? UINT64_C(1) << sq : 0;
-    board->bb.rooks |= ptype == GPU_PTYPE_ROOK || ptype == GPU_PTYPE_ROOK
+    board->bb.rooks |= ptype == GPU_PTYPE_ROOK || ptype == GPU_PTYPE_QUEEN
         ? UINT64_C(1) << sq : 0;
     board->bb.kings |= ptype == GPU_PTYPE_KING ? UINT64_C(1) << sq : 0;
 
@@ -73,7 +73,7 @@ __device__ static inline void gpu_delete_piece(
     board->bb.knights &= ~(ptype == GPU_PTYPE_KNIGHT ? UINT64_C(1) << sq : 0);
     board->bb.bishops &= ~(ptype == GPU_PTYPE_BISHOP || ptype == GPU_PTYPE_QUEEN
         ? UINT64_C(1) << sq : 0);
-    board->bb.rooks &= ~(ptype == GPU_PTYPE_ROOK || ptype == GPU_PTYPE_ROOK
+    board->bb.rooks &= ~(ptype == GPU_PTYPE_ROOK || ptype == GPU_PTYPE_QUEEN
         ? UINT64_C(1) << sq : 0);
     board->bb.kings &= ~(ptype == GPU_PTYPE_KING ? UINT64_C(1) << sq : 0);
 

@@ -70,18 +70,21 @@ __device__ static inline void gpu_append_pinned_pawn_moves(
         gpu_state_tables_t *__restrict__ state, uint64_t pinned)
 {
     while (pinned) {
-        uint64_t mvmsk = 0;
         uint8_t sq = gpu_pop_rbit(&pinned);
-
+        uint64_t mvmsk;
         uint8_t target;
         gpu_mv_flag_t flags;
 
         /* Generate the move mask. */
-        mvmsk |= gpu_pawn_smear(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
-        mvmsk |= gpu_pawn_smear_forward(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
+        mvmsk = gpu_pawn_smear_forward(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
         mvmsk |= gpu_pawn_smear_forward(mvmsk, board->turn) &
             (board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE);
+        mvmsk |= gpu_pawn_smear(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
+
+        /* TODO: Remove me. */
+        printf("mvmsk: %" PRIu64 "\n", mvmsk);
         mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
+        printf("mvmsk: %" PRIu64 "\n", mvmsk);
 
         /* Append all of the moves to the list. */
         while (mvmsk) {
@@ -614,6 +617,8 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
 __device__ static inline void gpu_gen_board_tables(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
+    /* TODO: Remove me */
+    //gpu_print_bitboard(board);
     state->threats = gpu_gen_threats(board);
     state->checks = gpu_gen_checks(board, state->threats);
     state->check_blocks = gpu_gen_check_blocks(board, state->checks);
