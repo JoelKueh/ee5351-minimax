@@ -224,21 +224,21 @@ __device__ static inline uint64_t gpu_ray_through_sq2(uint8_t sq1, uint8_t sq2)
     uint8_t dir = gpu_get_ray_direction(sq1, sq2);
     switch (dir) {
         case GPU_DIR_R:
-            return gpu_east_ray(sq1);
+            return gpu_east_ray(UINT64_C(1) << sq1);
         case GPU_DIR_UR:
-            return gpu_north_east_ray(sq1);
+            return gpu_north_east_ray(UINT64_C(1) << sq1);
         case GPU_DIR_U:
-            return gpu_north_ray(sq1);
+            return gpu_north_ray(UINT64_C(1) << sq1);
         case GPU_DIR_UL:
-            return gpu_north_west_ray(sq1);
+            return gpu_north_west_ray(UINT64_C(1) << sq1);
         case GPU_DIR_L:
-            return gpu_west_ray(sq1);
+            return gpu_west_ray(UINT64_C(1) << sq1);
         case GPU_DIR_DL:
-            return gpu_south_west_ray(sq1);
+            return gpu_south_west_ray(UINT64_C(1) << sq1);
         case GPU_DIR_D:
-            return gpu_south_ray(sq1);
+            return gpu_south_ray(UINT64_C(1) << sq1);
         case GPU_DIR_DR:
-            return gpu_south_east_ray(sq1);
+            return gpu_south_east_ray(UINT64_C(1) << sq1);
         default:
             return 0;
     }

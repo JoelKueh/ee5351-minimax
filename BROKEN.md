@@ -25,3 +25,5 @@ List of notes while I try to fix move generation.
 - More problems with duplicating pieces.
   - Pawn takes queen seems to be the root of a lot of the trouble.
   - Problem was that gpu\_make deleted ptype instead of cap\_ptype on capture.
+- Problems with pins.
+  - Simple error: used sq instead of UINT64\_C << sq in ray generation.
