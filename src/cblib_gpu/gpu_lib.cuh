@@ -51,6 +51,9 @@ __device__ static inline void gpu_make(
 
     /* If a piece was captured, set it in the board state. */
     gpu_state_set_captured_piece(&new_state, cap_ptype);
+    /* TODO: Remove me. */
+    if (cap_ptype != 6)
+        printf("cap_ptpye: %d\n", gpu_state_get_captured_piece(new_state));
     gpu_state_decay_castle_rights(&new_state, board->turn, to, from);
 
     /* Piece type changes if this is a promotion. Remember that
@@ -58,10 +61,6 @@ __device__ static inline void gpu_make(
      *  - Only promos have the 4th bit of the flag set. */
     new_ptype = ptype + 1 + ((flag & 0b111 << 12) >> 12);
     new_ptype = (flag & (0b1000 << 12)) ? new_ptype : ptype;
-
-    /* TODO: Remove me. */
-    printf("flag: %x, expr: %x\n", flag, flag & (0b1000 << 12));
-    printf("new_ptype: %d, ptype: %d\n", new_ptype, ptype);
 
     /* Move the piece from its previous position to its new position. */
     if (cap_ptype != GPU_PTYPE_EMPTY)
@@ -92,7 +91,6 @@ __device__ static inline void gpu_make(
         gpu_delete_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
         gpu_write_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
     }
-    gpu_print_bitboard(board);
 
     /* Save the new state to the stack. */
 out_save_stack:
@@ -102,7 +100,7 @@ out_save_stack:
     gpu_ss_descend(ss, new_ele);
 }
 
-__device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
+__device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board)
 {
     gpu_hist_ele_t old_ele = gpu_ss_ascend(ss);
@@ -143,6 +141,12 @@ __device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 
     /* Move the pieces back into place. */
     gpu_delete_piece(board, to, ptype, board->turn);
+    /* TODO: Remove me. */
+    printf("to: %d, from: %d\n", to, from);
+    printf("kings: %" PRIu64 "\n", GPU_BB_KINGS(board->bb, board->turn));
+    printf("ptpye: %d\n", ptype);
+    printf("from_ptpye: %d\n", from_ptype);
+    printf("cap_ptpye: %d\n", cap_ptype);
     if (cap_ptype != GPU_PTYPE_EMPTY)
         gpu_write_piece(board, to, cap_ptype, !board->turn);
     gpu_write_piece(board, from, from_ptype, board->turn);

@@ -9,7 +9,7 @@
 __device__ static inline void gpu_make(
         gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board,
         const gpu_move_t mv);
-__device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
+__device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board);
 
 __device__ static inline void gpu_ss_push_move(

@@ -136,9 +136,6 @@ void append_pawn_moves(cb_mvlst_t *mvlst, cb_board_t *board, cb_state_tables_t *
     /* Get the mask of pawns that we want to evaluate. */
     uint64_t pawns = board->bb.piece[board->turn][CB_PTYPE_PAWN];
 
-    /* TODO: REMOVE ME.
-    cb_print_state(stdout, state); */
-
     /* Remove all of the pinned pawns and add back those that lie on a left ray. */
     uint64_t left_pin_mask = state->pins[CB_DIR_DR] | state->pins[CB_DIR_UL];
     uint64_t left_pawns = (pawns & ~state->pins[8]) | (pawns & left_pin_mask);

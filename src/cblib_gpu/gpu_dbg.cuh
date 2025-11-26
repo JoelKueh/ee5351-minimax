@@ -56,34 +56,22 @@ __device__ void gpu_print_bitboard(gpu_board_t *board)
     }
 }
 
-__device__ void gpu_print_state(FILE *f, gpu_state_tables_t *state)
+__device__ void gpu_print_state(gpu_state_tables_t *state)
 {
-    const char *headers[] = { "THREATS", "CHECKS", "CHECK_BLOCKS" };
-    int i, j;
+    const char *headers[] = { "PINS", "THREATS", "CHECKS", "CHECK_BLOCKS" };
     char byte[PRINT_BUF_LEN];
+    int i;
 
-    /* Print pins. */
-    printf("\nPINS\n");
-    for (i = 0; i < 9; i++)
-        printf("===============  ");
     printf("\n");
-    for (i = 0; i < 8; i++) {
-        for (j = 0; j < 9; j++) {
-            gpu_prep_bb_byte(byte, state->pinned, i);
-            printf("%s  ", byte);
-        }
-        printf("\n");
-    }
-
-    /* Print other tables. */
-    printf("\n");
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 4; i++)
         printf("%-17s", headers[i]);
     printf("\n");
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 4; i++)
         printf("===============  ");
     printf("\n");
     for (i = 0; i < 8; i++) {
+        gpu_prep_bb_byte(byte, state->pinned, i);
+        printf("%s  ", byte);
         gpu_prep_bb_byte(byte, state->threats, i);
         printf("%s  ", byte);
         gpu_prep_bb_byte(byte, state->checks, i);

@@ -14,6 +14,11 @@
 #define DEFAULT_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 #define MODDED_FEN "rnbqkbnr/pppppppp/p7/1p6/2p5/3p4/PPPPpPPP/RNBQKpNR w KQkq - 0 1"
 
+typedef enum {
+    PERFT_CPU,
+    PERFT_GPU
+} perft_types_t;
+
 int handle_position(cb_board_t *board)
 {
     /* Slice the next word off the command. */
@@ -137,7 +142,7 @@ int handle_board(cb_board_t *board)
     return 0;
 }
 
-int handle_perft(cb_board_t *board)
+int handle_perft(cb_board_t *board, perft_types_t type)
 {
     /* Slice off the algebraic part of the move. */
     char *token = strtok(NULL, " \n");
@@ -157,11 +162,12 @@ int handle_perft(cb_board_t *board)
         printf("Depth must be a base 10 integer");
     }
 
-#if 0
-    return perft_cheat(board, depth);
-#else
-    return perft_gpu_slow(board, depth);
-#endif
+    /* Perform the perft. */
+    if (type == PERFT_CPU) {
+        return perft_cheat(board, depth);
+    } else if (type == PERFT_GPU) {
+        return perft_gpu_slow(board, depth);
+    }
 }
 
 int handle_go(cb_board_t *board)
@@ -170,7 +176,9 @@ int handle_go(cb_board_t *board)
     char *token = strtok(NULL, " \n");
 
     if (strcmp(token, "perft") == 0)
-        return handle_perft(board);
+        return handle_perft(board, PERFT_CPU);
+    else if (strcmp(token, "pgpu") == 0)
+        return handle_perft(board, PERFT_GPU);
     
     printf("Invalid go command\n");
     return 0;

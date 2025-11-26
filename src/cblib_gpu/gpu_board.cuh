@@ -12,15 +12,15 @@ __device__ static inline gpu_ptype_t gpu_ptype_at_sq(
 {
     gpu_ptype_t ptype = GPU_PTYPE_EMPTY;
 
-    ptype = GPU_BB_PAWNS(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+    ptype = board->bb.piece[GPU_PTYPE_PAWN] & (UINT64_C(1) << sq) ?
         GPU_PTYPE_PAWN : ptype;
-    ptype = GPU_BB_KNIGHTS(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+    ptype = board->bb.piece[GPU_PTYPE_KNIGHT] & (UINT64_C(1) << sq) ?
         GPU_PTYPE_KNIGHT : ptype;
-    ptype = GPU_BB_B_AND_Q(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+    ptype = board->bb.piece[GPU_PTYPE_BISHOP] & (UINT64_C(1) << sq) ?
         GPU_PTYPE_BISHOP : ptype;
-    ptype = GPU_BB_R_AND_Q(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+    ptype = board->bb.piece[GPU_PTYPE_ROOK] & (UINT64_C(1) << sq) ?
         (ptype == GPU_PTYPE_BISHOP ? GPU_PTYPE_QUEEN : GPU_PTYPE_ROOK) : ptype;
-    ptype = GPU_BB_KINGS(board->bb, board->turn) & (UINT64_C(1) << sq) ?
+    ptype = board->bb.piece[4] & (UINT64_C(1) << sq) ?
         GPU_PTYPE_KING : ptype;
 
     return ptype;
@@ -57,8 +57,6 @@ __device__ static inline void gpu_write_piece(
     } else {
         board->bb.piece[ptype] |= UINT64_C(1) << sq;
     }
-    /* TODO: Remove me. */
-    printf("Sq: %d, Type: %d\n", sq, ptype);
 
     /* Set the color and occupancy normal bitboards. */
     if (pcolor == GPU_WHITE)

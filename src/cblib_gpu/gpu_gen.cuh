@@ -15,6 +15,7 @@
 #include "gpu_bitutil.cuh"
 #include "gpu_search_struct.cuh"
 #include "gpu_ray_gen.cuh"
+#include "gpu_dbg.cuh"
 
 /* TODO: Move generation task. This is likely the hardest task.
  *
@@ -342,6 +343,7 @@ __device__ static inline void gpu_append_simple_moves(
 
     /* Generate king moves. */
     uint64_t kings = GPU_BB_KINGS(board->bb, board->turn);
+    /* Kings can't be pinned of course. */
     while (kings) {
         sq = gpu_pop_rbit(&kings);
         mvmsk = gpu_read_king_atk_msk(sq);
@@ -502,6 +504,13 @@ __device__ static inline uint64_t gpu_gen_threats(
         threats |= gpu_read_rook_atk_msk(gpu_pop_rbit(&rooks), occ);
     }
 
+    /* Generate king threats. */
+    /* TODO: Fast, non-lookup king move generation.
+     * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
+     */
+    uint64_t kings = GPU_BB_KINGS(board->bb, !board->turn);
+    threats |= gpu_read_king_atk_msk(gpu_peek_rbit(kings));
+
     return threats;
 }
 
@@ -573,8 +582,8 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
 {
     uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
     uint64_t blockers = GPU_BB_COLOR(board->bb, board->turn);
+    uint64_t pinned = 0;
     uint64_t pinner;
-    uint64_t pinned;
     uint8_t sq;
 
     /* Get all of the first pinners. */
