@@ -78,7 +78,7 @@ __device__ static inline void gpu_delete_piece(
     board->bb.kings &= ~(ptype == GPU_PTYPE_KING ? UINT64_C(1) << sq : 0);
 
     /* Set the color and occupancy normal bitboards. */
-    board->bb.color &= ~(pcolor == GPU_WHITE ? UINT64_C(1) << sq : 0);
+    board->bb.color &= ~(UINT64_C(1) << sq);
     board->bb.occ &= ~(UINT64_C(1) << sq);
 }
 
