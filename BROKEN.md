@@ -24,3 +24,4 @@ List of notes while I try to fix move generation.
   - Problem was that a double pawn push can block a check even if the single pawn push doesn't.
 - More problems with duplicating pieces.
   - Pawn takes queen seems to be the root of a lot of the trouble.
+  - Problem was that gpu\_make deleted ptype instead of cap\_ptype on capture.
