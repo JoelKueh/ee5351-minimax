@@ -4,7 +4,7 @@
 
 #include <threads.h>
 
-#include "gpu_lib.h"
+#include "gpu_dbg.cuh"
 #include "gpu_const.cuh"
 #include "gpu_move.cuh"
 #include "gpu_board.cuh"
@@ -57,7 +57,11 @@ __device__ static inline void gpu_make(
      *  - Flag types are sequential in lowest 3 bits.
      *  - Only promos have the 4th bit of the flag set. */
     new_ptype = ptype + 1 + ((flag & 0b111 << 12) >> 12);
-    new_ptype = flag & (0b1000 << 12) ? ptype : new_ptype;
+    new_ptype = (flag & (0b1000 << 12)) ? new_ptype : ptype;
+
+    /* TODO: Remove me. */
+    printf("flag: %x, expr: %x\n", flag, flag & (0b1000 << 12));
+    printf("new_ptype: %d, ptype: %d\n", new_ptype, ptype);
 
     /* Move the piece from its previous position to its new position. */
     if (cap_ptype != GPU_PTYPE_EMPTY)
@@ -88,6 +92,7 @@ __device__ static inline void gpu_make(
         gpu_delete_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
         gpu_write_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
     }
+    gpu_print_bitboard(board);
 
     /* Save the new state to the stack. */
 out_save_stack:
@@ -130,8 +135,8 @@ __device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 
     /* Read the piece type from the board. */
     ptype = gpu_ptype_at_sq(board, to);
-    cap_ptype = gpu_state_enp_available(old_ele.state) ?
-        GPU_PTYPE_EMPTY : gpu_state_get_captured_piece(old_ele.state);
+    cap_ptype = gpu_mv_is_cap(old_ele.move) ?
+        gpu_state_get_captured_piece(old_ele.state) : GPU_PTYPE_EMPTY;
 
     /* Piece type changes if there was a promotion. */
     from_ptype = flag & (0b1000 << 12) ? GPU_PTYPE_PAWN : ptype;
@@ -139,7 +144,7 @@ __device__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
     /* Move the pieces back into place. */
     gpu_delete_piece(board, to, ptype, board->turn);
     if (cap_ptype != GPU_PTYPE_EMPTY)
-        gpu_write_piece(board, to, cap_ptype, board->turn);
+        gpu_write_piece(board, to, cap_ptype, !board->turn);
     gpu_write_piece(board, from, from_ptype, board->turn);
 
     /* Extra work for king side castling. */

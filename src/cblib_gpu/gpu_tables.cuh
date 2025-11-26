@@ -90,7 +90,7 @@ static inline void gpu_init_tables()
     for (int sq = 0; sq < 64; sq++) {
         cudaMalloc((void**)&gpu_rook_atk_ptrs_h[sq],
                 (1 << NUM_ROOK_BITS[sq]) * sizeof(uint64_t));
-        cudaMemcpy(gpu_rook_atk_ptrs_h[sq], bishop_atks[sq],
+        cudaMemcpy(gpu_rook_atk_ptrs_h[sq], rook_atks[sq],
                 (1 << NUM_ROOK_BITS[sq]) * sizeof(uint64_t), cudaMemcpyHostToDevice);
     }
     cudaMemcpyToSymbol(d_rook_atks, gpu_rook_atk_ptrs_h, 64 * sizeof(uint64_t*));

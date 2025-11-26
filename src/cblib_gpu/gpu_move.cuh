@@ -41,5 +41,16 @@ __device__ static inline gpu_move_t gpu_mv_from_data(
     return flags | (from << 6) | to;
 }
 
+/**
+ * Checks if a move was a capture.
+ */
+__device__ static inline bool gpu_mv_is_cap(gpu_move_t mv)
+{
+    uint16_t flag = mv & GPU_MV_FLAG_MASK;
+    return flag == GPU_MV_CAPTURE || flag == GPU_MV_KNIGHT_PROMO_CAPTURE ||
+        flag == GPU_MV_ROOK_PROMO_CAPTURE || flag == GPU_MV_QUEEN_PROMO_CAPTURE;
+}
+
+
 #endif /* GPU_MOVE_H */
 

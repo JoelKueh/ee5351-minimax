@@ -14,13 +14,14 @@ extern "C" {
 }
 #endif
 
-
 #include "perft_gpu.h"
 #include "cblib_gpu/gpu_types.cuh"
 #include "cblib_gpu/gpu_board.cuh"
 #include "cblib_gpu/gpu_move.cuh"
 #include "cblib_gpu/gpu_gen.cuh"
 #include "cblib_gpu/gpu_tables.cuh"
+#include "cblib_gpu/gpu_lib.cuh"
+#include "cblib_gpu/gpu_dbg.cuh"
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
 uint64_t *gpu_rook_atk_ptrs_h[64];
@@ -40,16 +41,11 @@ __global__ void perft_gpu_slow_kernel(
         uint64_t *counts, gpu_move_t *moves, uint8_t *num_moves_from_root,
         int depth)
 {
+    /* Variables containing search and board state information. */
     gpu_search_struct_t ss;
-    gpu_board_t board;
-    gpu_move_t mv;
-
     gpu_state_tables_t state;
-    uint64_t perft_results[GPU_MAX_NUM_MOVES];
-    uint64_t cnt = 0;
-    uint64_t total = 0;
-    char buf[6];
-    int i;
+    gpu_board_t board;
+    uint8_t mv_from_rt;
 
     /* Prepare the output for the search struct. */
     ss.positions = ss_nodes;
@@ -58,34 +54,55 @@ __global__ void perft_gpu_slow_kernel(
     board = *boards;
 
     /* Search through the tree. */
+    ss.move_counts[0] = 0;
+    ss.move_idx[0] = 0;
     ss.depth = 0;
-    ss.offset = 0;
-    for (int d = 0; d < depth; d++) {
+    gpu_gen_board_tables(&board, &state);
+    gpu_gen_moves(&ss, &board, &state);
+
+    /* Loop through the generated moves and add them to the output. */
+    mv_from_rt = ss.move_counts[0];
+    for (int i = 0; i < mv_from_rt; i++) {
+        moves[i] = gpu_ss_get_move(&ss, i);
+        counts[i] = 0;
+    }
+
+    /* Search through the tree. DFS in a while loop. */
+    while (ss.move_idx[0] < mv_from_rt) {
+        /* We have traversed an entire subtree, back out. */
+        if (gpu_all_nodes_traversed(&ss)) {
+            gpu_unmake(&ss, &board);
+            continue;
+        }
+
+        /* Make a child move and traverse its subtree. */
+        gpu_traverse_to_next_child(&ss, &board);
+
+        /* If we have bottomed out, then add to our count. */
+        if (ss.depth == depth) {
+            counts[ss.move_idx[0]-1] += 1;
+            gpu_unmake(&ss, &board);
+            continue;
+        }
+
+        /* In all other cases, generate moves after the traversal. */
+        gpu_print_bitboard(&board);
         gpu_gen_board_tables(&board, &state);
         gpu_gen_moves(&ss, &board, &state);
     }
 
-    /* Loop through the generated moves and add them to the output. */
-    for (int i = 0; i < ss.offset; i++) {
-        moves[i] = ss.positions[0].moves[0][i];
-        counts[i] = 1;
-    }
-    *num_moves_from_root = ss.offset;
+    *num_moves_from_root = mv_from_rt;
 
     return;
 }
 
 int perft_gpu_slow(cb_board_t *board, int depth)
 {
-    /* Error handling and printing variables. */
-    cb_errno_t result;
-    cb_error_t err;
-
     /* Variables for printing the results. */
     uint64_t total;
     cb_move_t mv;
     char buf[6];
-    int i;
+    uint8_t mv_idx;
 
     /* Variables for interfacing with the kernel. */
     gpu_board_t h_board;
@@ -107,9 +124,6 @@ int perft_gpu_slow(cb_board_t *board, int depth)
         printf("No perft with a depth below 1\n");
         return 0;
     }
-
-    /* TODO: Remove me. */
-    depth = 1;
 
     /* Allocate space in device memory for the board and results. */
     cudaMalloc((void**)&d_ss_nodes,
@@ -151,17 +165,24 @@ int perft_gpu_slow(cb_board_t *board, int depth)
     cudaMemcpy(&h_num_moves_from_root, d_num_moves_from_root,
             sizeof(uint8_t), cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
+    printf("Number of moves from root: %d\n", h_num_moves_from_root);
 
     /* Loop over the output. */
     total = 0;
-    for (i = 0; i < h_num_moves_from_root; i++) {
-        mv = h_perft_moves[i];
-        total += h_perft_counts[i];
+    for (mv_idx = 0; mv_idx < h_num_moves_from_root; mv_idx++) {
+        mv = h_perft_moves[mv_idx];
+        total += h_perft_counts[mv_idx];
         cb_mv_to_uci_algbr(buf, mv);
-        printf("%s: %" PRIu64 "\n", buf, h_perft_counts[i]);
-        cb_unmake(board);
+        printf("%s: %" PRIu64 "\n", buf, h_perft_counts[mv_idx]);
     }
     end_time = time_ns();
+
+    /* Allocate space in device memory for the board and results. */
+    cudaFree(d_ss_nodes);
+    cudaFree(d_board);
+    cudaFree(d_perft_counts);
+    cudaFree(d_perft_moves);
+    cudaFree(d_num_moves_from_root);
 
     /* Print out the results. */
     printf("\n");

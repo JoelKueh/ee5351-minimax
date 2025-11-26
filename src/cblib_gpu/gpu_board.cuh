@@ -44,38 +44,46 @@ __device__ static inline gpu_color_t gpu_color_at(
     return gpu_color_at_sq(board, row * 8 + col);
 }
 
-/* Functions for manipulating the board representation. */
-__device__ static inline void gpu_replace_piece(
-        gpu_board_t *__restrict__ board, uint8_t sq, uint8_t ptype,
-        uint8_t pcolor, uint8_t old_ptype, uint8_t old_pcolor)
-{
-    /* Unset the bits for the piece type. */
-    board->bb.piece[ptype] |= UINT64_C(1) << sq;
-    board->bb.piece[old_ptype] &= ~(UINT64_C(1) << sq);
-
-    /* Update the color bitboard based on the new type and color. */
-    if (pcolor == GPU_WHITE)
-        board->bb.color |= UINT64_C(1) << sq;
-    if (old_pcolor == GPU_WHITE)
-        board->bb.color &= ~(UINT64_C(1) << sq);
-}
-
 __device__ static inline void gpu_write_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
-    board->bb.piece[ptype] |= UINT64_C(1) << sq;
+    /* Queens are split among bishop and rook bitboards. */
+    if (ptype == GPU_PTYPE_QUEEN) {
+        board->bb.piece[GPU_PTYPE_BISHOP] |= UINT64_C(1) << sq;
+        board->bb.piece[GPU_PTYPE_ROOK] |= UINT64_C(1) << sq;
+    } else if (ptype == GPU_PTYPE_KING) {
+        board->bb.piece[4] |= UINT64_C(1) << sq;
+    } else {
+        board->bb.piece[ptype] |= UINT64_C(1) << sq;
+    }
+    /* TODO: Remove me. */
+    printf("Sq: %d, Type: %d\n", sq, ptype);
+
+    /* Set the color and occupancy normal bitboards. */
     if (pcolor == GPU_WHITE)
         board->bb.color |= UINT64_C(1) << sq;
+    board->bb.occ |= UINT64_C(1) << sq;
 }
 
 __device__ static inline void gpu_delete_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
-    board->bb.piece[ptype] &= ~(UINT64_C(1) << sq);
+    /* Queens are split among bishop and rook bitboards. */
+    if (ptype == GPU_PTYPE_QUEEN) {
+        board->bb.piece[GPU_PTYPE_BISHOP] &= ~(UINT64_C(1) << sq);
+        board->bb.piece[GPU_PTYPE_ROOK] &= ~(UINT64_C(1) << sq);
+    } else if (ptype == GPU_PTYPE_KING) {
+        board->bb.piece[4] &= ~(UINT64_C(1) << sq);
+    } else {
+        board->bb.piece[ptype] &= ~(UINT64_C(1) << sq);
+    }
+
+    /* Set the color and occupancy normal bitboards. */
     if (pcolor == GPU_WHITE)
         board->bb.color &= ~(UINT64_C(1) << sq);
+    board->bb.occ &= ~(UINT64_C(1) << sq);
 }
 
 __device__ static inline void gpu_wipe_board(gpu_board_t *__restrict__ board)

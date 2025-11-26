@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #define GPU_MAX_NUM_MOVES 218
-#define GPU_MAX_SEARCH_DEPTH 10
+#define GPU_MAX_SEARCH_DEPTH 8
 
 /* Macros for reading pieces in the board. */
 #define GPU_BB_COLOR(b, c)   (c ? b.color : b.occ & ~b.color);
@@ -154,9 +154,8 @@ typedef struct {
  * Shared among warps.
  */
 typedef struct {
-    gpu_move_t moves[32][GPU_MAX_NUM_MOVES];
+    gpu_move_t moves[GPU_MAX_NUM_MOVES][32];
     gpu_hist_ele_t hist_ele[32];
-    uint8_t move_counts[32];
 } gpu_search_struct_node_t;
 
 /**
@@ -165,8 +164,9 @@ typedef struct {
  */
 typedef struct {
     gpu_search_struct_node_t *positions;
+    uint8_t move_counts[GPU_MAX_SEARCH_DEPTH];
+    uint8_t move_idx[GPU_MAX_SEARCH_DEPTH];
     int depth;
-    int offset;
 } gpu_search_struct_t;
 
 #if 0
