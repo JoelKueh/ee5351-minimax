@@ -6,8 +6,8 @@
 #include "gpu_const.cuh"
 
 /* Masks for working with enpassant. */
-#define GPU_STATE_ENP_COL (UINT64_C(0b111) << 5)
-#define GPU_STATE_HAS_ENP (UINT64_C(1) << 4)
+#define GPU_STATE_ENP_COL (UINT16_C(0b111) << 5)
+#define GPU_STATE_HAS_ENP (UINT16_C(1) << 4)
 
 /**
  * Returns true if the player has the right to king side castle, false otherwise.
@@ -88,7 +88,7 @@ __device__ static inline void gpu_state_add_castle(
  */
 __device__ static inline bool gpu_state_enp_available(gpu_history_t hist)
 {
-    return (hist & GPU_STATE_ENP_COL) != 0;
+    return (hist & GPU_STATE_HAS_ENP) != 0;
 }
 
 __device__ static inline uint8_t gpu_state_enp_col(gpu_history_t hist)

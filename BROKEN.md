@@ -27,3 +27,13 @@ List of notes while I try to fix move generation.
   - Problem was that gpu\_make deleted ptype instead of cap\_ptype on capture.
 - Problems with pins.
   - Simple error: used sq instead of UINT64\_C << sq in ray generation.
+- Problems with enpassant.
+  - Looks like this is twofold. There are problems with making the move and updating state and detection.
+  - Detection is fixed now.
+  - Looks like it was an issue where the board state wasn't being written on make.
+- Castling is definetly broken.
+  - 0 1 1 1 0 0 1 1 - Saw this in the state. Black queen enpassant has decayed for some reason.
+  - Probably related to 3 lines above, maybe fixed? First castle is at depth 7, black castle at 8.
+- Looks like there is an issue with writing CB\_PTYPE\_EMPTY to the bitboard again.
+  - Seems to have something to do with a capture of a queen and a write to square 31?
+

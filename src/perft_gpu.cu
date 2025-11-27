@@ -54,7 +54,6 @@ __global__ void perft_gpu_slow_kernel(
     board = *boards;
 
     /* TODO: Remove me. Print out initial board. */
-    printf("test\n");
     gpu_print_bitboard(&board);
 
     /* Search through the tree. */

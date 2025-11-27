@@ -175,9 +175,9 @@ int handle_go(cb_board_t *board)
     /* Slice off the algebraic part of the move. */
     char *token = strtok(NULL, " \n");
 
-    if (strcmp(token, "perft") == 0)
+    if (strcmp(token, "pcpu") == 0)
         return handle_perft(board, PERFT_CPU);
-    else if (strcmp(token, "pgpu") == 0)
+    else if (strcmp(token, "perft") == 0)
         return handle_perft(board, PERFT_GPU);
     
     printf("Invalid go command\n");

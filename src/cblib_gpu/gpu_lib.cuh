@@ -35,6 +35,9 @@ __device__ static inline void gpu_make(
     /* Variables for enp. */
     int8_t direction;
 
+    /* Decay enpassant. */
+    gpu_state_decay_enp(&new_state);
+
     /* Handle enpassant separately (it's rare so divergence is fine). */
     if (flag == GPU_MV_ENPASSANT) {
         direction = board->turn == GPU_WHITE ? 8 : -8;
@@ -92,6 +95,7 @@ __device__ static inline void gpu_make(
     /* Save the new state to the stack. */
 out_save_stack:
     board->turn = !board->turn;
+    board->state = new_state;
     new_ele.state = new_state;
     new_ele.move = mv;
     gpu_ss_descend(ss, new_ele);
@@ -118,6 +122,7 @@ __device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 
     /* Update the current turn. */
     board->turn = !board->turn;
+    board->state = old_ele.state;
 
     /* Handle enpassant separately (it's rare so divergence is fine). */
     if (flag == GPU_MV_ENPASSANT) {
@@ -131,7 +136,7 @@ __device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
     /* Read the piece type from the board. */
     ptype = gpu_ptype_at_sq(board, to);
     cap_ptype = gpu_mv_is_cap(old_ele.move) ?
-        gpu_state_get_captured_piece(old_ele.state) : GPU_PTYPE_EMPTY;
+        gpu_state_get_captured_piece(board->state) : GPU_PTYPE_EMPTY;
 
     /* Piece type changes if there was a promotion. */
     from_ptype = flag & (0b1000 << 12) ? GPU_PTYPE_PAWN : ptype;

@@ -446,11 +446,11 @@ __device__ void gpu_append_enp_moves(
         king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
 
         bishop_threats = gpu_read_bishop_atk_msk(king_sq, new_occ)
-            & GPU_BB_B_AND_Q(board->bb, board->turn);
+            & GPU_BB_B_AND_Q(board->bb, !board->turn);
         if (bishop_threats) continue;
 
         rook_threats = gpu_read_rook_atk_msk(king_sq, new_occ)
-            & GPU_BB_R_AND_Q(board->bb, board->turn);
+            & GPU_BB_R_AND_Q(board->bb, !board->turn);
         if (rook_threats) continue;
 
         /* Push the move if it doesn't cause any problems. */
