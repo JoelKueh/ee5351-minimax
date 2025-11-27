@@ -36,4 +36,6 @@ List of notes while I try to fix move generation.
   - Probably related to 3 lines above, maybe fixed? First castle is at depth 7, black castle at 8.
 - Looks like there is an issue with writing CB\_PTYPE\_EMPTY to the bitboard again.
   - Seems to have something to do with a capture of a queen and a write to square 31?
-
+  - This one's funny. A pinned pawn has special move generation. This move generation was bugged and allowed a pawn push to take the queen.
+- Probelm with pinned pawn taking its pinner.
+  - This was an error with the ray generation.

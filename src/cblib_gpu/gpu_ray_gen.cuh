@@ -106,7 +106,7 @@ __device__ static inline uint64_t gpu_south_west_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_RIGHT_COL;
     const uint64_t pr1 = pr0 & (pr0 <<  7);
-    const uint64_t pr2 = pr1 & (pr1 >> 14);
+    const uint64_t pr2 = pr1 & (pr1 << 14);
     gen |= pr0 & (gen <<  7);
     gen |= pr1 & (gen << 14);
     gen |= pr2 & (gen << 28);

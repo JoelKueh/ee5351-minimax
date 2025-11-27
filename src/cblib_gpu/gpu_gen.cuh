@@ -32,9 +32,7 @@ __device__ static inline uint64_t gpu_pin_adjust(gpu_board_t *__restrict__ board
         gpu_state_tables_t *__restrict__ state, uint8_t sq, uint64_t moves)
 {
     uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
-    /* TODO: Remove me. */
-    //printf("king_sq: %d, sq: %d, pin_ray: %" PRIu64 "\n", king_sq, sq,
-    //        gpu_ray_through_sq2(king_sq, sq));
+    printf("ray: %" PRIu64, gpu_ray_through_sq2(king_sq, sq));
     return gpu_ray_through_sq2(king_sq, sq) & moves;
 }
 
@@ -80,11 +78,12 @@ __device__ static inline void gpu_append_pinned_pawn_moves(
 
         /* Generate the move mask. */
         mvmsk = gpu_pawn_smear_forward(UINT64_C(1) << sq, board->turn) & ~board->bb.occ;
-        mvmsk |= gpu_pawn_smear_forward(mvmsk, board->turn) &
+        mvmsk |= gpu_pawn_smear_forward(mvmsk, board->turn) & ~board->bb.occ &
             (board->turn == GPU_WHITE ? BB_WHITE_PAWN_LINE : BB_BLACK_PAWN_LINE);
         mvmsk |= gpu_pawn_smear(UINT64_C(1) << sq, board->turn) &
-            (~board->bb.color & board->bb.occ);
+            GPU_BB_COLOR(board->bb, !board->turn);
         mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
+        mvmsk &= state->check_blocks;
 
         /* Append all of the moves to the list. */
         while (mvmsk) {

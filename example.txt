@@ -1,0 +1,69 @@
+[joel@fedora]~/src/umntc/f25/ee5351/ee5351-minimax% ./tools/perft_find_error.py 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' 6
+Depth: 6  Expected  Extra     Wrong     Missing
+a2a3      4463267             4463235             
+a2a4      5363555             5363539             
+b1a3      4856835             4856803             
+b1c3      5708064             5708048             
+b2b3      5310358             5310342             
+b2b4      5293555             5293523             
+c2c3      5417640             5416651             
+c2c4      5866666             5865661             
+d2d3      8073082             8073058             
+d2d4      8879566             8879170             
+e2e3      9726018             9723866             
+e2e4      9771632             9770192             
+f2f3      4404141             4404117             
+f2f4      4890429             4890397             
+g1f3      5723523             5723499             
+g1h3      4877234             4877202             
+g2g3      5346260             5345881             
+g2g4      5239875             5239503             
+h2h3      4463070             4463038             
+h2h4      5385554             5385522             
+
+Depth: 5  Expected  Extra     Wrong     Missing   
+b7b5      198797              198793              
+c7c6      203960              203956              
+d7d5      331473              331465              
+d7d6      300892              300884              
+f7f5      181945              181943              
+f7f6      163919              163917              
+g7g6      199099              199095              
+
+Depth: 4  Expected  Extra     Wrong     Missing   
+c2c3      9805                9803                
+c2c4      11489               11487               
+
+Depth: 3  Expected  Extra     Wrong     Missing   
+d7d5      581                 580                 
+d7d6      560                 559                 
+
+Depth: 2  Expected  Extra     Wrong     Missing   
+d1a4      29                  28                  
+
+Depth: 1  Expected  Extra     Wrong     Missing   
+b5a4      1                             1         
+
+Missing: a2a3 b7b5 c2c3 d7d5 d1a4 b5a4
+
+[joel@fedora]~/src/umntc/f25/ee5351/ee5351-minimax% ./tools/perft_find_error.py 'rnbqkbnr/pppppppp/8/8/8/P7/1PPPPPPP/RNBQKBNR b KQkq - 0 1' 5
+Depth: 5  Expected  Extra     Wrong     Missing   
+b7b5      198797              198793              
+d7d5      331473              331467              
+d7d6      300892              300886              
+
+Depth: 4  Expected  Extra     Wrong     Missing   
+c2c3      9805                9803                
+c2c4      11489               11487               
+
+Depth: 3  Expected  Extra     Wrong     Missing   
+d7d5      581                 580                 
+d7d6      560                 559                 
+
+Depth: 2  Expected  Extra     Wrong     Missing   
+d1a4      29                  28                  
+
+Depth: 1  Expected  Extra     Wrong     Missing   
+b5a4      1                             1         
+
+Missing: b7b5 c2c3 d7d5 d1a4 b5a4

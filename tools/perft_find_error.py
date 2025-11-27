@@ -33,7 +33,7 @@ def perft_get_counts(driver, fen, depth, moves):
         # Start the subprocess and wait for it to complete.
         engine = subprocess.Popen([driver], stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE, text=True)
-        output = engine.communicate(input=driver_cmd, timeout=120)[0]
+        output = engine.communicate(input=driver_cmd, timeout=1000)[0]
 
         # Loop through the output and parse it.
         for line in output.splitlines():
