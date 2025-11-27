@@ -5,7 +5,7 @@ List of notes while I try to fix move generation.
   - Fact that you get 20 in the initial position is really a coincidence.
   - This was partly caused by me copying the bishop atks into the rook positions. Pawn moves are screwed up.
 - Looks like a pawn is turning into a knight after the first move, why is this?
-  - Had to do with the way that I was handling promotions
+  - Had to do with the way that I was handling promotions. Promotions were happening where they shouldn't.
 - Looks like things are being detected as pinned when they shouldn't be
 - Move generation for pinned pawns might not work as it should. Specifically black pawns.
 - Theat generation is slightly off.
@@ -39,3 +39,10 @@ List of notes while I try to fix move generation.
   - This one's funny. A pinned pawn has special move generation. This move generation was bugged and allowed a pawn push to take the queen.
 - Probelm with pinned pawn taking its pinner.
   - This was an error with the ray generation.
+- Looks like there's an error with making rook moves decay the wrong castle rights.
+  - This was not an error with the decay function. It was an error with board state tracking.
+- Sigh... Another error with pieces being written to the baotd.
+  - Looks like this one is when a pawn promotes with a capture.
+  - I foolishly stated that PROMOS are sequential in the lowest 3 bits, and added the lowest 3 bits to the piece type to compute the new ptype.
+  - This is wront, it should have been the lowest two bits.
+  - Similar problem with capture detection. Incorrect check for capture promos.

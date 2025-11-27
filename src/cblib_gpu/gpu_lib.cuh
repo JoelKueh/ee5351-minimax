@@ -57,10 +57,14 @@ __device__ static inline void gpu_make(
     gpu_state_decay_castle_rights(&new_state, board->turn, to, from);
 
     /* Piece type changes if this is a promotion. Remember that
-     *  - Flag types are sequential in lowest 3 bits.
+     *  - Flag types are sequential in lowest 2 bits.
      *  - Only promos have the 4th bit of the flag set. */
-    new_ptype = ptype + 1 + ((flag & 0b111 << 12) >> 12);
+    new_ptype = ptype + 1 + ((flag & (0b11 << 12)) >> 12);
     new_ptype = (flag & (0b1000 << 12)) ? new_ptype : ptype;
+    /* TODO: Remove me. */
+    //if (flag & (0b1000 << 12)) {
+    //    printf("make - ptype: %d, cap_ptype: %d, new_ptype: %d, flag: %d\n", ptype, cap_ptype, new_ptype, flag);
+    //}
 
     /* Move the piece from its previous position to its new position. */
     if (cap_ptype != GPU_PTYPE_EMPTY)
@@ -95,9 +99,9 @@ __device__ static inline void gpu_make(
     /* Save the new state to the stack. */
 out_save_stack:
     board->turn = !board->turn;
-    board->state = new_state;
-    new_ele.state = new_state;
+    new_ele.state = board->state;
     new_ele.move = mv;
+    board->state = new_state;
     gpu_ss_descend(ss, new_ele);
 }
 
@@ -122,7 +126,6 @@ __device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 
     /* Update the current turn. */
     board->turn = !board->turn;
-    board->state = old_ele.state;
 
     /* Handle enpassant separately (it's rare so divergence is fine). */
     if (flag == GPU_MV_ENPASSANT) {
@@ -140,6 +143,10 @@ __device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 
     /* Piece type changes if there was a promotion. */
     from_ptype = flag & (0b1000 << 12) ? GPU_PTYPE_PAWN : ptype;
+    /* TODO: Remove me. */
+    //if (flag & (0b1000 << 12)) {
+    //    printf("unmake - ptype: %d, cap_ptype: %d, from_ptype: %d, flag: %d\n", ptype, cap_ptype, from_ptype, flag);
+    //}
 
     /* Move the pieces back into place. */
     gpu_delete_piece(board, to, ptype, board->turn);
@@ -166,6 +173,9 @@ __device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
         gpu_write_piece(board, rook_from, GPU_PTYPE_ROOK, board->turn);
         gpu_delete_piece(board, rook_to, GPU_PTYPE_ROOK, board->turn);
     }
+
+    /* Reset the board state. */
+    board->state = old_ele.state;
 }
 
 #endif /* GPU_LIB_H */

@@ -53,9 +53,6 @@ __global__ void perft_gpu_slow_kernel(
     /* Load the board from memory. */
     board = *boards;
 
-    /* TODO: Remove me. Print out initial board. */
-    gpu_print_bitboard(&board);
-
     /* Search through the tree. */
     ss.move_counts[0] = 0;
     ss.move_idx[0] = 0;
@@ -97,9 +94,6 @@ __global__ void perft_gpu_slow_kernel(
 
     /* Set output move count. */
     *num_moves_from_root = mv_from_rt;
-
-    /* TODO: Remove me. Print out final board. */
-    gpu_print_bitboard(&board);
 
     return;
 }

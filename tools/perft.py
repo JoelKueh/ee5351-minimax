@@ -10,7 +10,7 @@ import pexpect
 # Get the path to the debug executable to test.
 script_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.abspath(script_dir + "/..")
-khess_path = root_dir + "/build/debug"
+khess_path = root_dir + "/bin/debug"
 
 move_regex = r"([a-zA-z][1-8][a-zA-z][1-8][nbrq]?): ([1-9]\d*|0)"
 end_regex = r"Nodes searched: ([1-9]\d*|0)"
@@ -129,7 +129,7 @@ def perform_test(fen, depth, result):
     #    print(f"{fen} | {depth} | {result}")
     #    perform_test(fen, depth, result)
 
-for fen, depth, result in zip(POSITIONS, SHORT_RESULTS, SHORT_RESULTS):
+for fen, depth, result in zip(POSITIONS, SHORT_DEPTHS, SHORT_RESULTS):
     print()
     print(f"{fen} | {depth} | {result}")
     perform_test(fen, depth, result)

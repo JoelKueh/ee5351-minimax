@@ -32,7 +32,6 @@ __device__ static inline uint64_t gpu_pin_adjust(gpu_board_t *__restrict__ board
         gpu_state_tables_t *__restrict__ state, uint8_t sq, uint64_t moves)
 {
     uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
-    printf("ray: %" PRIu64, gpu_ray_through_sq2(king_sq, sq));
     return gpu_ray_through_sq2(king_sq, sq) & moves;
 }
 
@@ -616,8 +615,6 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
 __device__ static inline void gpu_gen_board_tables(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
-    /* TODO: Remove me */
-    //gpu_print_bitboard(board);
     state->threats = gpu_gen_threats(board);
     state->checks = gpu_gen_checks(board, state->threats);
     state->check_blocks = gpu_gen_check_blocks(board, state->checks);
