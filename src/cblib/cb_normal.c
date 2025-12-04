@@ -7,6 +7,8 @@
 uint64_t pawn_atks[2][64];
 uint64_t knight_atks[64];
 uint64_t king_atks[64];
+uint64_t bishop_no_occ[64];
+uint64_t rook_no_occ[64];
 uint64_t to_from_table[64][64];
 
 /**
@@ -104,6 +106,136 @@ uint64_t get_connecting_ray(uint64_t sq1, uint64_t sq2)
 }
 
 /**
+ * Returns the attack mask for a bishop with no blokers. e.g:
+ *
+ *      . . . . . x . .
+ *      x . . . x . . .
+ *      . x . x . . . .
+ *      . . . . . . . .
+ *      . x . x . . . .
+ *      x . . . x . . .
+ *      . . . . . x . .
+ *      . . . . . . x .
+ */
+uint64_t get_bishop_atk_no_occ(uint8_t sq)
+{
+    uint64_t result = 0;
+    int8_t source_rank = sq / 8;
+    int8_t source_file = sq % 8;
+    int8_t rank;
+    int8_t file;
+
+    /* Down-Right */
+    rank = source_rank + 1;
+    file = source_file + 1;
+    while (rank <= 7 && file <= 7) {
+        result |= UINT64_C(1) << (file + rank * 8);
+        rank++;
+        file++;
+    }
+
+    /* Down-Left */
+    rank = source_rank + 1;
+    file = source_file - 1;
+    while (rank <= 7 && file >= 0) {
+        result |= UINT64_C(1) << (file + rank * 8);
+        rank++;
+        file--;
+    }
+
+    /* Up-Right */
+    rank = source_rank - 1;
+    file = source_file + 1;
+    while (rank >= 0 && file <= 7) {
+        result |= UINT64_C(1) << (file + rank * 8);
+        rank--;
+        file++;
+    }
+
+    /* Up-Left */
+    rank = source_rank - 1;
+    file = source_file - 1;
+    while (rank >= 0 && file >= 0) {
+        result |= UINT64_C(1) << (file + rank * 8);
+        rank--;
+        file--;
+    }
+
+    return result;
+}
+
+/**
+ * Returns the attack mask for a rook with no blockers:
+ *
+ *      . . x . . . . .
+ *      . . x . . . . .
+ *      . . x . . . . .
+ *      x x . x x x x x
+ *      . . x . . . . .
+ *      . . x . . . . .
+ *      . . x . . . . .
+ *      . . x . . . . .
+ */
+uint64_t get_rook_atk_no_occ(uint8_t sq)
+{
+    uint64_t result = 0;
+    int8_t source_rank = sq / 8;
+    int8_t source_file = sq % 8;
+    int8_t rank;
+    int8_t file;
+
+    /* Down */
+    rank = source_rank + 1;
+    while (rank <= 7) {
+        result |= UINT64_C(1) << (source_file + rank * 8);
+        rank++;
+    }
+
+    /* Up */
+    rank = source_rank - 1;
+    while (rank >= 0) {
+        result |= UINT64_C(1) << (source_file + rank * 8);
+        rank--;
+    }
+
+    /* Right */
+    file = source_file + 1;
+    while (file <= 7) {
+        result |= UINT64_C(1) << (file + source_rank * 8);
+        file++;
+    }
+
+    /* Left */
+    file = source_file - 1;
+    while (file >= 0) {
+        result |= UINT64_C(1) << (file + source_rank * 8);
+        file--;
+    }
+
+    return result;
+}
+
+/**
+ * Generates bishop attack mask with no occluders.
+ */
+void gen_bishop_no_occ()
+{
+    for (int sq = 0; sq < 64; sq++) {
+        bishop_no_occ[sq] = get_bishop_atk_no_occ(sq);
+    }
+}
+
+/**
+ * Generates bishop attack mask with no occluders.
+ */
+void gen_rook_no_occ()
+{
+    for (int sq = 0; sq < 64; sq++) {
+        rook_no_occ[sq] = get_rook_atk_no_occ(sq);
+    }
+}
+
+/**
  * Generate the table of rays that extend from one square to another.
  */
 void gen_to_from_table()
@@ -124,6 +256,8 @@ void cb_init_normal_tables()
     gen_knight_atk_table();
     gen_king_atk_table();
     gen_to_from_table();
+    gen_bishop_no_occ();
+    gen_rook_no_occ();
 }
 
 uint64_t cb_read_pawn_atk_msk(uint8_t sq, cb_color_t color)
@@ -145,3 +279,4 @@ uint64_t cb_read_tf_table(uint8_t sq1, uint8_t sq2)
 {
     return to_from_table[sq1][sq2];
 }
+

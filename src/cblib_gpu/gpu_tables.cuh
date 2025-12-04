@@ -50,6 +50,8 @@ __constant__ uint64_t d_rook_magics[64];
 __constant__ uint64_t *d_bishop_atks[64];
 __constant__ uint64_t *d_rook_atks[64];
 __constant__ uint64_t d_to_from_table[64][64];
+__constant__ uint64_t d_bishop_no_occ[64];
+__constant__ uint64_t d_rook_no_occ[64];
 
 extern uint64_t knight_atks[64];
 extern uint64_t king_atks[64];
@@ -63,6 +65,8 @@ extern uint64_t *bishop_atks[64];
 extern uint64_t *rook_atks[64];
 extern const uint64_t BISHOP_MAGICS[64];
 extern const uint64_t ROOK_MAGICS[64];
+extern uint64_t bishop_no_occ[64];
+extern uint64_t rook_no_occ[64];
 
 extern uint64_t *gpu_bishop_atk_ptrs_h[64];
 extern uint64_t *gpu_rook_atk_ptrs_h[64];
@@ -78,6 +82,8 @@ static inline void gpu_init_tables()
     cudaMemcpyToSymbol(d_bishop_magics, BISHOP_MAGICS, 64 * sizeof(uint64_t));
     cudaMemcpyToSymbol(d_rook_magics, ROOK_MAGICS, 64 * sizeof(uint64_t));
     cudaMemcpyToSymbol(d_to_from_table, to_from_table, 64 * 64 * sizeof(uint64_t));
+    cudaMemcpyToSymbol(d_bishop_no_occ, bishop_no_occ, 64 * sizeof(uint64_t));
+    cudaMemcpyToSymbol(d_rook_no_occ, rook_no_occ, 64 * sizeof(uint64_t));
 
     for (int sq = 0; sq < 64; sq++) {
         cudaMalloc((void**)&gpu_bishop_atk_ptrs_h[sq],
@@ -135,6 +141,16 @@ __device__ static inline uint64_t gpu_read_king_atk_msk(uint8_t sq)
 __device__ static inline uint64_t gpu_read_tf_table(uint8_t sq1, uint8_t sq2)
 {
     return d_to_from_table[sq1][sq2];
+}
+
+__device__ static inline uint64_t gpu_read_bishop_no_occ(uint8_t sq)
+{
+    return d_bishop_no_occ[sq];
+}
+
+__device__ static inline uint64_t gpu_read_rook_no_occ(uint8_t sq)
+{
+    return d_rook_no_occ[sq];
 }
 
 #endif /* GPU_TABLES_H */

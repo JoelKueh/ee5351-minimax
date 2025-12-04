@@ -581,26 +581,32 @@ __device__ static inline uint64_t gpu_xray_rook_attacks(
 /* TODO: This fucntion needs serious adjustment. */
 __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
 {
-    uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
     uint64_t blockers = GPU_BB_COLOR(board->bb, board->turn);
+
+    uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
     uint64_t pinned = 0;
     uint64_t pinner;
+    uint64_t ray;
     uint8_t sq;
 
-    /* Get all of the first pinners. */
-    pinner = gpu_xray_bishop_attacks(board->bb.occ, blockers, king_sq)
+    /* Get all potential pinners. */
+    pinner = gpu_read_bishop_no_occ(king_sq)
         & GPU_BB_B_AND_Q(board->bb, !board->turn);
-    while (pinner) {
-        sq = gpu_pop_rbit(&pinner);
-        pinned |= gpu_read_tf_table(sq, king_sq) & blockers;
-    }
-
-    /* Get all of the second pinners. */
-    pinner = gpu_xray_rook_attacks(board->bb.occ, blockers, king_sq)
+    pinner |= gpu_read_rook_no_occ(king_sq)
         & GPU_BB_R_AND_Q(board->bb, !board->turn);
+
+    /* Loop over potential pinners. */
     while (pinner) {
+        /* Get the ray between the pinner and the king. */
         sq = gpu_pop_rbit(&pinner);
-        pinned |= gpu_read_tf_table(sq, king_sq) & blockers;
+        ray = gpu_read_tf_table(sq, king_sq);
+
+        /* If ray has more than 2 pieces on it (pinner and pinned), skip. */
+        if (gpu_popcnt(ray & board->bb.occ) > 2)
+            continue;
+
+        /* Else add pinned piece to the mask. */
+        pinned |= ray & blockers;
     }
 
     return pinned;
