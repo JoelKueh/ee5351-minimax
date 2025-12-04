@@ -58,4 +58,4 @@ obj/%.cu.o: src/%.cu
 	$(NVCC) $(ALL_FLAGS) -MMD -MP -MF $(@:.o=.d) -c -o $@ $< 
 
 clean:
-	rm -rf $(OBJ_DIR)/* $(BIN_DIR)/*
+	rm -rf ./$(OBJ_DIR)/* ./$(BIN_DIR)/*
