@@ -8,7 +8,7 @@
 #include "gpu_types.cuh"
 #include "gpu_dbg.cuh"
 
-__device__ static inline gpu_ptype_t gpu_ptype_at_sq(
+__device__ __forceinline__ gpu_ptype_t gpu_ptype_at_sq(
         const gpu_board_t *__restrict__ board, uint8_t sq)
 {
     gpu_ptype_t ptype = GPU_PTYPE_EMPTY;
@@ -23,25 +23,25 @@ __device__ static inline gpu_ptype_t gpu_ptype_at_sq(
     return ptype;
 }
 
-__device__ static inline gpu_ptype_t gpu_ptype_at(
+__device__ __forceinline__ gpu_ptype_t gpu_ptype_at(
         const gpu_board_t *__restrict__ board, uint8_t row, uint8_t col)
 {
     return gpu_ptype_at_sq(board, row * 8 + col);
 }
 
-__device__ static inline gpu_color_t gpu_color_at_sq(
+__device__ __forceinline__ gpu_color_t gpu_color_at_sq(
         const gpu_board_t *__restrict__ board, uint8_t sq)
 {
     return board->bb.color & (UINT64_C(1) << sq) ? GPU_WHITE : GPU_BLACK;
 }
 
-__device__ static inline gpu_color_t gpu_color_at(
+__device__ __forceinline__ gpu_color_t gpu_color_at(
         const gpu_board_t *__restrict__ board, uint8_t row, uint8_t col)
 {
     return gpu_color_at_sq(board, row * 8 + col);
 }
 
-__device__ static inline void gpu_write_piece(
+__device__ __forceinline__ void gpu_write_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
@@ -64,7 +64,7 @@ __device__ static inline void gpu_write_piece(
     board->bb.occ |= UINT64_C(1) << sq;
 }
 
-__device__ static inline void gpu_delete_piece(
+__device__ __forceinline__ void gpu_delete_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
@@ -82,7 +82,7 @@ __device__ static inline void gpu_delete_piece(
     board->bb.occ &= ~(UINT64_C(1) << sq);
 }
 
-__device__ static inline void gpu_wipe_board(gpu_board_t *__restrict__ board)
+__device__ __forceinline__ void gpu_wipe_board(gpu_board_t *__restrict__ board)
 {
     board->bb.color = 0;
     board->bb.pawns = 0;

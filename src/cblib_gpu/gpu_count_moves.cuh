@@ -4,7 +4,7 @@
 
 #include "gpu_gen.cuh"
 
-__device__ static inline uint8_t gpu_count_pinned_pawn_moves(
+__device__ __forceinline__ uint8_t gpu_count_pinned_pawn_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state,
         uint64_t pinned)
 {
@@ -37,7 +37,7 @@ __device__ static inline uint8_t gpu_count_pinned_pawn_moves(
     return count;
 }
 
-__device__ static inline uint8_t gpu_count_pawn_moves(
+__device__ __forceinline__ uint8_t gpu_count_pawn_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t count = 0;
@@ -87,7 +87,7 @@ __device__ static inline uint8_t gpu_count_pawn_moves(
     return count;
 }
 
-__device__ static inline uint8_t gpu_count_simple_moves(
+__device__ __forceinline__ uint8_t gpu_count_simple_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t count = 0;
@@ -164,7 +164,7 @@ __device__ static inline uint8_t gpu_count_simple_moves(
     return count;
 }
 
-__device__ static inline uint8_t gpu_count_castle_moves(
+__device__ __forceinline__ uint8_t gpu_count_castle_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t count = 0;
@@ -173,7 +173,7 @@ __device__ static inline uint8_t gpu_count_castle_moves(
     return count;
 }
 
-__device__ static inline uint8_t gpu_count_enp_moves(
+__device__ __forceinline__ uint8_t gpu_count_enp_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     /* Exit early if there is not availiable enpassant. */
@@ -221,7 +221,7 @@ __device__ static inline uint8_t gpu_count_enp_moves(
     return count;
 }
 
-__device__ static inline uint8_t gpu_count_moves(
+__device__ __forceinline__ uint8_t gpu_count_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t count = 0;

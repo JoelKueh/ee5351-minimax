@@ -12,7 +12,7 @@
 /**
  * Returns true if the player has the right to king side castle, false otherwise.
  */
-__device__ static inline bool gpu_state_has_ksc(
+__device__ __forceinline__ bool gpu_state_has_ksc(
         gpu_history_t hist, gpu_color_t color)
 {
     return (hist & 0b10 << color * 2) != 0;
@@ -21,7 +21,7 @@ __device__ static inline bool gpu_state_has_ksc(
 /**
  * Returns true if the player still has the right to queen side castle, false otherwise.
  */
-__device__ static inline bool gpu_state_has_qsc(
+__device__ __forceinline__ bool gpu_state_has_qsc(
         gpu_history_t hist, gpu_color_t color)
 {
     return (hist & 0b1 << color * 2) != 0;
@@ -30,7 +30,7 @@ __device__ static inline bool gpu_state_has_qsc(
 /**
  * Removes the right to king side castle.
  */
-__device__ static inline void gpu_state_remove_ksc(
+__device__ __forceinline__ void gpu_state_remove_ksc(
         gpu_history_t hist, gpu_color_t color)
 {
     hist &= ~(0b10 << color * 2);
@@ -39,7 +39,7 @@ __device__ static inline void gpu_state_remove_ksc(
 /**
  * Removes the right to queen side castle.
  */
-__device__ static inline void gpu_state_remove_qsc(
+__device__ __forceinline__ void gpu_state_remove_qsc(
         gpu_history_t hist, gpu_color_t color)
 {
     hist &= ~(0b1 << color * 2);
@@ -48,7 +48,7 @@ __device__ static inline void gpu_state_remove_qsc(
 /**
  * Removes all castling rights for a specified color.
  */
-__device__ static inline void gpu_state_remove_castle(
+__device__ __forceinline__ void gpu_state_remove_castle(
         gpu_history_t hist, gpu_color_t color)
 {
     hist &= ~(0b11 << color * 2);
@@ -58,7 +58,7 @@ __device__ static inline void gpu_state_remove_castle(
 /**
  * Adds king side castling right.
  */
-__device__ static inline void gpu_state_add_ksc(
+__device__ __forceinline__ void gpu_state_add_ksc(
         gpu_history_t hist, gpu_color_t color)
 {
     hist |= 0b10 << color * 2;
@@ -67,7 +67,7 @@ __device__ static inline void gpu_state_add_ksc(
 /**
  * Adds queen side castling right.
  */
-__device__ static inline void gpu_state_add_qsc(
+__device__ __forceinline__ void gpu_state_add_qsc(
         gpu_history_t hist, gpu_color_t color)
 {
     hist |= 0b1 << color * 2;
@@ -76,7 +76,7 @@ __device__ static inline void gpu_state_add_qsc(
 /**
  * Removes all castling rights for specified color.
  */
-__device__ static inline void gpu_state_add_castle(
+__device__ __forceinline__ void gpu_state_add_castle(
         gpu_history_t hist, gpu_color_t color)
 {
     hist |= 0b11 << color * 2;
@@ -86,12 +86,12 @@ __device__ static inline void gpu_state_add_castle(
 /**
  * Returns true if there is an enpassant availiable.
  */
-__device__ static inline bool gpu_state_enp_available(gpu_history_t hist)
+__device__ __forceinline__ bool gpu_state_enp_available(gpu_history_t hist)
 {
     return (hist & GPU_STATE_HAS_ENP) != 0;
 }
 
-__device__ static inline uint8_t gpu_state_enp_col(gpu_history_t hist)
+__device__ __forceinline__ uint8_t gpu_state_enp_col(gpu_history_t hist)
 {
     return (hist & GPU_STATE_ENP_COL) >> 5;
 }
@@ -99,7 +99,7 @@ __device__ static inline uint8_t gpu_state_enp_col(gpu_history_t hist)
 /**
  * Sets up this move state to open an enpassant square.
  */
-__device__ static inline void gpu_state_set_enp(
+__device__ __forceinline__ void gpu_state_set_enp(
         gpu_history_t *__restrict__ hist, uint8_t enp_col)
 {
     *hist = (*hist & ~GPU_STATE_ENP_COL) | (enp_col << 5);
@@ -109,7 +109,7 @@ __device__ static inline void gpu_state_set_enp(
 /**
  * Removes enpassant from the history state.
  */
-__device__ static inline void gpu_state_decay_enp(
+__device__ __forceinline__ void gpu_state_decay_enp(
         gpu_history_t *__restrict__ hist)
 {
     *hist &= ~GPU_STATE_ENP_COL;
@@ -118,14 +118,14 @@ __device__ static inline void gpu_state_decay_enp(
 /**
  * Sets up this move state to hold a captured piece.
  */
-__device__ static inline void gpu_state_set_captured_piece(
+__device__ __forceinline__ void gpu_state_set_captured_piece(
         gpu_history_t *__restrict__ hist, gpu_ptype_t pid)
 {
     *hist = (*hist & ~HIST_ENP_COL) | (pid << 5);
     *hist &= ~HIST_ENP_AVAILABLE;
 }
 
-__device__ static inline gpu_ptype_t gpu_state_get_captured_piece(
+__device__ __forceinline__ gpu_ptype_t gpu_state_get_captured_piece(
         gpu_history_t hist)
 {
     return (gpu_ptype_t)((hist & HIST_ENP_COL) >> 5);
@@ -134,7 +134,7 @@ __device__ static inline gpu_ptype_t gpu_state_get_captured_piece(
 /**
  * Decays castle rights after a move.
  */
-__device__ static inline void gpu_state_decay_castle_rights(
+__device__ __forceinline__ void gpu_state_decay_castle_rights(
         gpu_history_t *__restrict__ hist, uint8_t color,
         uint8_t to, uint8_t from)
 {

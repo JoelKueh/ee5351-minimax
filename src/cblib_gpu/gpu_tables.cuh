@@ -102,7 +102,7 @@ static inline void gpu_init_tables()
     cudaMemcpyToSymbol(d_rook_atks, gpu_rook_atk_ptrs_h, 64 * sizeof(uint64_t*));
 }
 
-static inline void gpu_free_tables()
+__forceinline__ void gpu_free_tables()
 {
     for (int sq = 0; sq < 64; sq++) {
         cudaFree(gpu_bishop_atk_ptrs_h[sq]);
@@ -112,7 +112,7 @@ static inline void gpu_free_tables()
     }
 }
 
-__device__ static inline uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t occ)
 {
     occ &= d_bishop_occ_mask[sq];
     occ *= d_bishop_magics[sq];
@@ -120,7 +120,7 @@ __device__ static inline uint64_t gpu_read_bishop_atk_msk(uint8_t sq, uint64_t o
     return d_bishop_atks[sq][key];
 }
 
-__device__ static inline uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ)
 {
     occ &= d_rook_occ_mask[sq];
     occ *= d_rook_magics[sq];
@@ -128,27 +128,27 @@ __device__ static inline uint64_t gpu_read_rook_atk_msk(uint8_t sq, uint64_t occ
     return d_rook_atks[sq][key];
 }
 
-__device__ static inline uint64_t gpu_read_knight_atk_msk(uint8_t sq)
+__device__ __forceinline__ uint64_t gpu_read_knight_atk_msk(uint8_t sq)
 {
     return d_knight_atks[sq];
 }
 
-__device__ static inline uint64_t gpu_read_king_atk_msk(uint8_t sq)
+__device__ __forceinline__ uint64_t gpu_read_king_atk_msk(uint8_t sq)
 {
     return d_king_atks[sq];
 }
 
-__device__ static inline uint64_t gpu_read_tf_table(uint8_t sq1, uint8_t sq2)
+__device__ __forceinline__ uint64_t gpu_read_tf_table(uint8_t sq1, uint8_t sq2)
 {
     return d_to_from_table[sq1][sq2];
 }
 
-__device__ static inline uint64_t gpu_read_bishop_no_occ(uint8_t sq)
+__device__ __forceinline__ uint64_t gpu_read_bishop_no_occ(uint8_t sq)
 {
     return d_bishop_no_occ[sq];
 }
 
-__device__ static inline uint64_t gpu_read_rook_no_occ(uint8_t sq)
+__device__ __forceinline__ uint64_t gpu_read_rook_no_occ(uint8_t sq)
 {
     return d_rook_no_occ[sq];
 }

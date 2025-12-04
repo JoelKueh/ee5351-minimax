@@ -11,7 +11,7 @@
 #include "gpu_history.cuh"
 #include "gpu_search_struct.cuh"
 
-__device__ static inline void gpu_make(
+__device__ __forceinline__ void gpu_make(
         gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board,
         const gpu_move_t mv)
 {
@@ -105,7 +105,7 @@ out_save_stack:
     gpu_ss_descend(ss, new_ele);
 }
 
-__device__ static inline void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
+__device__ __forceinline__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board)
 {
     gpu_hist_ele_t old_ele = gpu_ss_ascend(ss);

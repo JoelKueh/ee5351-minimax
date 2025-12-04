@@ -28,14 +28,14 @@
  * All in all, you will need to implmement
  */
 
-__device__ static inline uint64_t gpu_pin_adjust(gpu_board_t *__restrict__ board,
+__device__ __forceinline__ uint64_t gpu_pin_adjust(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state, uint8_t sq, uint64_t moves)
 {
     uint8_t king_sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
     return gpu_ray_through_sq2(king_sq, sq) & moves;
 }
 
-__device__ static inline uint64_t gpu_pawn_smear(
+__device__ __forceinline__ uint64_t gpu_pawn_smear(
         uint64_t pawns, gpu_color_t color)
 {
     return color == GPU_WHITE ?
@@ -43,7 +43,7 @@ __device__ static inline uint64_t gpu_pawn_smear(
         (pawns << 7 & ~BB_RIGHT_COL) | (pawns << 9 & ~BB_LEFT_COL);
 }
 
-__device__ static inline uint64_t gpu_pawn_smear_left(
+__device__ __forceinline__ uint64_t gpu_pawn_smear_left(
         uint64_t pawns, gpu_color_t color)
 {
     return color == GPU_WHITE ?
@@ -51,13 +51,13 @@ __device__ static inline uint64_t gpu_pawn_smear_left(
         (pawns << 9 & ~BB_LEFT_COL);
 }
 
-__device__ static inline uint64_t gpu_pawn_smear_forward(
+__device__ __forceinline__ uint64_t gpu_pawn_smear_forward(
         uint64_t pawns, gpu_color_t color)
 {
     return color == GPU_WHITE ? pawns >> 8 : pawns << 8;
 }
 
-__device__ static inline uint64_t gpu_pawn_smear_right(
+__device__ __forceinline__ uint64_t gpu_pawn_smear_right(
         uint64_t pawns, gpu_color_t color)
 {
     return color == GPU_WHITE ?
@@ -65,7 +65,7 @@ __device__ static inline uint64_t gpu_pawn_smear_right(
         (pawns << 7 & ~BB_RIGHT_COL);
 }
 
-__device__ static inline void gpu_append_pinned_pawn_moves(
+__device__ __forceinline__ void gpu_append_pinned_pawn_moves(
         gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state, uint64_t pinned)
 {
@@ -94,7 +94,7 @@ __device__ static inline void gpu_append_pinned_pawn_moves(
     }
 }
 
-__device__ static inline void gpu_append_pushes(
+__device__ __forceinline__ void gpu_append_pushes(
         gpu_search_struct_t *__restrict__ ss, gpu_board_t *__restrict__ board, uint64_t pushes)
 {
     uint8_t target;
@@ -107,7 +107,7 @@ __device__ static inline void gpu_append_pushes(
     }
 }
 
-__device__ static inline void gpu_append_doubles(
+__device__ __forceinline__ void gpu_append_doubles(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t doubles)
 {
@@ -121,7 +121,7 @@ __device__ static inline void gpu_append_doubles(
     }
 }
 
-__device__ static inline void gpu_append_left_attacks(
+__device__ __forceinline__ void gpu_append_left_attacks(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t left_attacks)
 {
@@ -135,7 +135,7 @@ __device__ static inline void gpu_append_left_attacks(
     }
 }
 
-__device__ static inline void gpu_append_right_attacks(
+__device__ __forceinline__ void gpu_append_right_attacks(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t right_attacks)
 {
@@ -149,7 +149,7 @@ __device__ static inline void gpu_append_right_attacks(
     }
 }
 
-__device__ static inline void gpu_append_left_promos(
+__device__ __forceinline__ void gpu_append_left_promos(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t left_promos)
 {
@@ -166,7 +166,7 @@ __device__ static inline void gpu_append_left_promos(
     }
 }
 
-__device__ static inline void gpu_append_forward_promos(
+__device__ __forceinline__ void gpu_append_forward_promos(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t forward_promos)
 {
@@ -183,7 +183,7 @@ __device__ static inline void gpu_append_forward_promos(
     }
 }
 
-__device__ static inline void gpu_append_right_promos(
+__device__ __forceinline__ void gpu_append_right_promos(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, uint64_t right_promos)
 {
@@ -201,7 +201,7 @@ __device__ static inline void gpu_append_right_promos(
 }
 
 /* TODO: Move pinned pawn logic elsewhere. */
-__device__ static inline void gpu_append_pawn_moves(
+__device__ __forceinline__ void gpu_append_pawn_moves(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
@@ -249,7 +249,7 @@ __device__ static inline void gpu_append_pawn_moves(
 }
 
 /* TODO: Simple moves cover pretty much everything. */
-__device__ static inline void gpu_append_simple_moves(
+__device__ __forceinline__ void gpu_append_simple_moves(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
@@ -358,7 +358,7 @@ __device__ static inline void gpu_append_simple_moves(
     }
 }
 
-__device__ static inline bool ksc_legal(gpu_board_t *__restrict__ board,
+__device__ __forceinline__ bool ksc_legal(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
     uint64_t occ_mask = board->turn == GPU_WHITE ? BB_WHITE_KING_SIDE_CASTLE_OCCUPANCY :
@@ -371,7 +371,7 @@ __device__ static inline bool ksc_legal(gpu_board_t *__restrict__ board,
         && gpu_state_has_ksc(board->state, board->turn);
 }
 
-__device__ static inline bool qsc_legal(gpu_board_t *__restrict__ board,
+__device__ __forceinline__ bool qsc_legal(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
     uint64_t occ_mask = board->turn == GPU_WHITE ? BB_WHITE_QUEEN_SIDE_CASTLE_OCCUPANCY :
@@ -384,7 +384,7 @@ __device__ static inline bool qsc_legal(gpu_board_t *__restrict__ board,
         && gpu_state_has_qsc(board->state, board->turn);
 }
 
-__device__ static inline void gpu_append_castle_moves(
+__device__ __forceinline__ void gpu_append_castle_moves(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
@@ -457,7 +457,7 @@ __device__ void gpu_append_enp_moves(
 }
 
 /* TODO: This one is pretty simple to change. */
-__device__ static inline void gpu_gen_moves(
+__device__ __forceinline__ void gpu_gen_moves(
         gpu_search_struct_t *__restrict__ ss,
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
@@ -467,7 +467,7 @@ __device__ static inline void gpu_gen_moves(
     gpu_append_enp_moves(ss, board, state);
 }
 
-__device__ static inline uint64_t gpu_gen_threats(
+__device__ __forceinline__ uint64_t gpu_gen_threats(
         gpu_board_t *__restrict__ board)
 {
     uint64_t threats;
@@ -516,7 +516,7 @@ __device__ static inline uint64_t gpu_gen_threats(
 }
 
 /* TODO: This one should be a straightforward translation. */
-__device__ static inline uint64_t gpu_gen_checks(
+__device__ __forceinline__ uint64_t gpu_gen_checks(
         gpu_board_t *__restrict__ board, uint64_t threats)
 {
     uint64_t king = GPU_BB_KINGS(board->bb, board->turn);
@@ -541,7 +541,7 @@ __device__ static inline uint64_t gpu_gen_checks(
 }
 
 /* TODO: This one should be a straightforward translation. */
-__device__ static inline uint64_t gpu_gen_check_blocks(
+__device__ __forceinline__ uint64_t gpu_gen_check_blocks(
         gpu_board_t *__restrict__ board, uint64_t checks)
 {
     if (checks == 0)
@@ -558,7 +558,7 @@ __device__ static inline uint64_t gpu_gen_check_blocks(
  *
  * I'd recommend looking this one up on Chess Programming Wiki.
  */
-__device__ static inline uint64_t gpu_xray_bishop_attacks(
+__device__ __forceinline__ uint64_t gpu_xray_bishop_attacks(
         uint64_t occ, uint64_t blockers, uint8_t sq)
 {
     uint64_t attacks = gpu_read_bishop_atk_msk(sq, occ);
@@ -570,7 +570,7 @@ __device__ static inline uint64_t gpu_xray_bishop_attacks(
  *
  * I'd recommend looking this one up on Chess Programming Wiki.
  */
-__device__ static inline uint64_t gpu_xray_rook_attacks(
+__device__ __forceinline__ uint64_t gpu_xray_rook_attacks(
         uint64_t occ, uint64_t blockers, uint8_t sq)
 {
     uint64_t attacks = gpu_read_rook_atk_msk(sq, occ);
@@ -579,7 +579,7 @@ __device__ static inline uint64_t gpu_xray_rook_attacks(
 }
 
 /* TODO: This fucntion needs serious adjustment. */
-__device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
+__device__ __forceinline__ uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
 {
     uint64_t blockers = GPU_BB_COLOR(board->bb, board->turn);
 
@@ -618,7 +618,7 @@ __device__ static inline uint64_t gpu_gen_pins(gpu_board_t *__restrict__ board)
  * In particular, I think we will need to take a look at the way I handle
  * pins. It is kindof stupid. See notes above and in gpu_types.h.
  */
-__device__ static inline void gpu_gen_board_tables(gpu_board_t *__restrict__ board,
+__device__ __forceinline__ void gpu_gen_board_tables(gpu_board_t *__restrict__ board,
         gpu_state_tables_t *__restrict__ state)
 {
     state->threats = gpu_gen_threats(board);

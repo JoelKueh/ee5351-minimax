@@ -31,7 +31,7 @@ typedef enum {
 } gpu_dir_t;
 
 /* Get the direction of a ray. */
-__device__ static inline uint8_t gpu_get_ray_direction(uint8_t sq1, uint8_t sq2)
+__device__ __forceinline__ uint8_t gpu_get_ray_direction(uint8_t sq1, uint8_t sq2)
 {
     int8_t sq1_rank = sq1 / 8;
     int8_t sq1_file = sq1 % 8;
@@ -50,7 +50,7 @@ __device__ static inline uint8_t gpu_get_ray_direction(uint8_t sq1, uint8_t sq2)
 }
 
 /* Empty board ray generation. */
-__device__ static inline uint64_t gpu_east_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_east_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_LEFT_COL;
     const uint64_t pr1 = pr0 & (pr0 << 1);
@@ -61,7 +61,7 @@ __device__ static inline uint64_t gpu_east_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_north_east_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_north_east_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_LEFT_COL;
     const uint64_t pr1 = pr0 & (pr0 >>  7);
@@ -72,7 +72,7 @@ __device__ static inline uint64_t gpu_north_east_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_north_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_north_ray(uint64_t gen)
 {
     gen |= (gen >>  8);
     gen |= (gen >> 16);
@@ -80,7 +80,7 @@ __device__ static inline uint64_t gpu_north_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_north_west_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_north_west_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_RIGHT_COL;
     const uint64_t pr1 = pr0 & (pr0 >>  9);
@@ -91,7 +91,7 @@ __device__ static inline uint64_t gpu_north_west_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_west_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_west_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_RIGHT_COL;
     const uint64_t pr1 = pr0 & (pr0 >> 1);
@@ -102,7 +102,7 @@ __device__ static inline uint64_t gpu_west_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_south_west_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_south_west_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_RIGHT_COL;
     const uint64_t pr1 = pr0 & (pr0 <<  7);
@@ -113,7 +113,7 @@ __device__ static inline uint64_t gpu_south_west_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_south_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_south_ray(uint64_t gen)
 {
     gen |= (gen <<  8);
     gen |= (gen << 16);
@@ -121,7 +121,7 @@ __device__ static inline uint64_t gpu_south_ray(uint64_t gen)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_south_east_ray(uint64_t gen)
+__device__ __forceinline__ uint64_t gpu_south_east_ray(uint64_t gen)
 {
     const uint64_t pr0 = ~BB_LEFT_COL;
     const uint64_t pr1 = pr0 & (pr0 <<  9);
@@ -133,7 +133,7 @@ __device__ static inline uint64_t gpu_south_east_ray(uint64_t gen)
 }
 
 /* Occluded ray generation. */
-__device__ static inline uint64_t gpu_east_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_east_ray_occ(uint64_t gen, uint64_t pro)
 {
     pro &= ~BB_LEFT_COL;
     gen |= pro & (gen << 1);
@@ -144,7 +144,7 @@ __device__ static inline uint64_t gpu_east_ray_occ(uint64_t gen, uint64_t pro)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_north_east_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_north_east_ray_occ(uint64_t gen, uint64_t pro)
 {
     pro &= ~BB_LEFT_COL;
     gen |= pro & (gen >>  7);
@@ -155,7 +155,7 @@ __device__ static inline uint64_t gpu_north_east_ray_occ(uint64_t gen, uint64_t 
     return gen;
 }
 
-__device__ static inline uint64_t gpu_north_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_north_ray_occ(uint64_t gen, uint64_t pro)
 {
     gen |= pro & (gen >>  8);
     pro &=       (pro >>  8);
@@ -165,7 +165,7 @@ __device__ static inline uint64_t gpu_north_ray_occ(uint64_t gen, uint64_t pro)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_north_west_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_north_west_ray_occ(uint64_t gen, uint64_t pro)
 {
     pro &= ~BB_RIGHT_COL;
     gen |= pro & (gen >>  9);
@@ -176,7 +176,7 @@ __device__ static inline uint64_t gpu_north_west_ray_occ(uint64_t gen, uint64_t 
     return gen;
 }
 
-__device__ static inline uint64_t gpu_west_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_west_ray_occ(uint64_t gen, uint64_t pro)
 {
     pro &= ~BB_RIGHT_COL;
     gen |= pro & (gen >> 1);
@@ -187,7 +187,7 @@ __device__ static inline uint64_t gpu_west_ray_occ(uint64_t gen, uint64_t pro)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_south_west_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_south_west_ray_occ(uint64_t gen, uint64_t pro)
 {
     pro &= ~BB_RIGHT_COL;
     gen |= pro & (gen <<  7);
@@ -198,7 +198,7 @@ __device__ static inline uint64_t gpu_south_west_ray_occ(uint64_t gen, uint64_t 
     return gen;
 }
 
-__device__ static inline uint64_t gpu_south_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_south_ray_occ(uint64_t gen, uint64_t pro)
 {
     gen |= pro & (gen <<  8);
     pro &=       (pro <<  8);
@@ -208,7 +208,7 @@ __device__ static inline uint64_t gpu_south_ray_occ(uint64_t gen, uint64_t pro)
     return gen;
 }
 
-__device__ static inline uint64_t gpu_south_east_ray_occ(uint64_t gen, uint64_t pro)
+__device__ __forceinline__ uint64_t gpu_south_east_ray_occ(uint64_t gen, uint64_t pro)
 {
     pro &= ~BB_LEFT_COL;
     gen |= pro & (gen <<  9);
@@ -219,7 +219,7 @@ __device__ static inline uint64_t gpu_south_east_ray_occ(uint64_t gen, uint64_t 
     return gen;
 }
 
-__device__ static inline uint64_t gpu_ray_through_sq2(uint8_t sq1, uint8_t sq2)
+__device__ __forceinline__ uint64_t gpu_ray_through_sq2(uint8_t sq1, uint8_t sq2)
 {
     uint8_t dir = gpu_get_ray_direction(sq1, sq2);
     switch (dir) {
@@ -244,42 +244,42 @@ __device__ static inline uint64_t gpu_ray_through_sq2(uint8_t sq1, uint8_t sq2)
     }
 }
 
-__device__ static inline uint64_t gpu_east_atk(uint64_t rooks, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_east_atk(uint64_t rooks, uint64_t occ)
 {
     return (gpu_east_ray_occ(rooks, ~occ) << 1) & ~BB_LEFT_COL;
 }
 
-__device__ static inline uint64_t gpu_north_atk(uint64_t rooks, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_north_atk(uint64_t rooks, uint64_t occ)
 {
     return gpu_north_ray_occ(rooks, ~occ) >> 8;
 }
 
-__device__ static inline uint64_t gpu_west_atk(uint64_t rooks, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_west_atk(uint64_t rooks, uint64_t occ)
 {
     return (gpu_west_ray_occ(rooks, ~occ) >> 1) & ~BB_RIGHT_COL;
 }
 
-__device__ static inline uint64_t gpu_south_atk(uint64_t rooks, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_south_atk(uint64_t rooks, uint64_t occ)
 {
     return gpu_south_ray_occ(rooks, ~occ) << 8;
 }
 
-__device__ static inline uint64_t gpu_north_east_atk(uint64_t bishops, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_north_east_atk(uint64_t bishops, uint64_t occ)
 {
     return (gpu_north_east_ray_occ(bishops, ~occ) >> 7) & ~BB_LEFT_COL;
 }
 
-__device__ static inline uint64_t gpu_north_west_atk(uint64_t bishops, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_north_west_atk(uint64_t bishops, uint64_t occ)
 {
     return (gpu_north_west_ray_occ(bishops, ~occ) >> 9) & ~BB_RIGHT_COL;
 }
 
-__device__ static inline uint64_t gpu_south_west_atk(uint64_t bishops, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_south_west_atk(uint64_t bishops, uint64_t occ)
 {
     return (gpu_south_west_ray_occ(bishops, ~occ) << 7) & ~BB_RIGHT_COL;
 }
 
-__device__ static inline uint64_t gpu_south_east_atk(uint64_t bishops, uint64_t occ)
+__device__ __forceinline__ uint64_t gpu_south_east_atk(uint64_t bishops, uint64_t occ)
 {
     return (gpu_south_east_ray_occ(bishops, ~occ) << 9) & ~BB_LEFT_COL;
 }
