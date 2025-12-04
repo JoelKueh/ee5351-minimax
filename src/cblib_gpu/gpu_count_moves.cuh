@@ -96,6 +96,10 @@ __device__ static inline uint8_t gpu_count_simple_moves(
     uint64_t mvmsk;
     uint64_t pinned = 0;
 
+    /* Mask for what squares sliding pieces are allowed to move onto. */
+    uint64_t slider_allow_mask =
+        ~GPU_BB_COLOR(board->bb, board->turn) & state->check_blocks;
+
     /* Generate knight moves. */
     uint64_t knights = GPU_BB_KNIGHTS(board->bb, board->turn);
     pinned = knights & state->pinned;
@@ -128,13 +132,10 @@ __device__ static inline uint8_t gpu_count_simple_moves(
         mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
         count += gpu_popcnt(mvmsk);
     }
-    while (bishops) {
-        sq = gpu_pop_rbit(&bishops);
-        mvmsk = gpu_read_bishop_atk_msk(sq, board->bb.occ);
-        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
-        mvmsk &= state->check_blocks;
-        count += gpu_popcnt(mvmsk);
-    }
+    count += gpu_popcnt(gpu_north_east_atk(bishops, board->bb.occ) & slider_allow_mask);
+    count += gpu_popcnt(gpu_north_west_atk(bishops, board->bb.occ) & slider_allow_mask);
+    count += gpu_popcnt(gpu_south_west_atk(bishops, board->bb.occ) & slider_allow_mask);
+    count += gpu_popcnt(gpu_south_east_atk(bishops, board->bb.occ) & slider_allow_mask);
 
     /* Generate rook and queen moves. */
     uint64_t rooks = GPU_BB_R_AND_Q(board->bb, board->turn);
@@ -148,24 +149,17 @@ __device__ static inline uint8_t gpu_count_simple_moves(
         mvmsk = gpu_pin_adjust(board, state, sq, mvmsk);
         count += gpu_popcnt(mvmsk);
     }
-    while (rooks) {
-        sq = gpu_pop_rbit(&rooks);
-        mvmsk = gpu_read_rook_atk_msk(sq, board->bb.occ);
-        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
-        mvmsk &= state->check_blocks;
-        count += gpu_popcnt(mvmsk);
-    }
+    count += gpu_popcnt(gpu_east_atk(rooks, board->bb.occ) & slider_allow_mask);
+    count += gpu_popcnt(gpu_north_atk(rooks, board->bb.occ) & slider_allow_mask);
+    count += gpu_popcnt(gpu_west_atk(rooks, board->bb.occ) & slider_allow_mask);
+    count += gpu_popcnt(gpu_south_atk(rooks, board->bb.occ) & slider_allow_mask);
 
     /* Generate king moves. */
-    uint64_t kings = GPU_BB_KINGS(board->bb, board->turn);
-    /* Kings can't be pinned of course. */
-    while (kings) {
-        sq = gpu_pop_rbit(&kings);
-        mvmsk = gpu_read_king_atk_msk(sq);
-        mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
-        mvmsk &= ~state->threats;
-        count += gpu_popcnt(mvmsk);
-    }
+    sq = gpu_peek_rbit(GPU_BB_KINGS(board->bb, board->turn));
+    mvmsk = gpu_read_king_atk_msk(sq);
+    mvmsk &= ~GPU_BB_COLOR(board->bb, board->turn);
+    mvmsk &= ~state->threats;
+    count += gpu_popcnt(mvmsk);
 
     return count;
 }

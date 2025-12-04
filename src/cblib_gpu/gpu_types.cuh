@@ -9,7 +9,7 @@
 #define GPU_MAX_SEARCH_DEPTH 8
 
 /* Macros for reading pieces in the board. */
-#define GPU_BB_COLOR(b, c)   (c ? b.color : b.occ & ~b.color);
+#define GPU_BB_COLOR(b, c)   (c ? b.color : b.occ & ~b.color)
 #define GPU_BB_PAWNS(b, c)   (b.pawns & (c ? b.color : ~b.color))
 #define GPU_BB_KNIGHTS(b, c) (b.knights & (c ? b.color : ~b.color))
 #define GPU_BB_B_AND_Q(b, c) (b.bishops & (c ? b.color : ~b.color)) /* Bishops and Queens. */

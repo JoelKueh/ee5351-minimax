@@ -244,5 +244,45 @@ __device__ static inline uint64_t gpu_ray_through_sq2(uint8_t sq1, uint8_t sq2)
     }
 }
 
+__device__ static inline uint64_t gpu_east_atk(uint64_t rooks, uint64_t occ)
+{
+    return (gpu_east_ray_occ(rooks, ~occ) << 1) & ~BB_LEFT_COL;
+}
+
+__device__ static inline uint64_t gpu_north_atk(uint64_t rooks, uint64_t occ)
+{
+    return gpu_north_ray_occ(rooks, ~occ) >> 8;
+}
+
+__device__ static inline uint64_t gpu_west_atk(uint64_t rooks, uint64_t occ)
+{
+    return (gpu_west_ray_occ(rooks, ~occ) >> 1) & ~BB_RIGHT_COL;
+}
+
+__device__ static inline uint64_t gpu_south_atk(uint64_t rooks, uint64_t occ)
+{
+    return gpu_south_ray_occ(rooks, ~occ) << 8;
+}
+
+__device__ static inline uint64_t gpu_north_east_atk(uint64_t bishops, uint64_t occ)
+{
+    return (gpu_north_east_ray_occ(bishops, ~occ) >> 7) & ~BB_LEFT_COL;
+}
+
+__device__ static inline uint64_t gpu_north_west_atk(uint64_t bishops, uint64_t occ)
+{
+    return (gpu_north_west_ray_occ(bishops, ~occ) >> 9) & ~BB_RIGHT_COL;
+}
+
+__device__ static inline uint64_t gpu_south_west_atk(uint64_t bishops, uint64_t occ)
+{
+    return (gpu_south_west_ray_occ(bishops, ~occ) << 7) & ~BB_RIGHT_COL;
+}
+
+__device__ static inline uint64_t gpu_south_east_atk(uint64_t bishops, uint64_t occ)
+{
+    return (gpu_south_east_ray_occ(bishops, ~occ) << 9) & ~BB_LEFT_COL;
+}
+
 #endif /* GPU_RAY_GEN_H */
 
