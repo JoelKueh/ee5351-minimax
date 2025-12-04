@@ -34,16 +34,17 @@ CBLIB_OBJS = $(CBLIB_SRCS:src/%.c=obj/%.o)
 CBLIB_DEPS = $(CBLIB_OBJS:%.o=%.d)
 -include $(CBLIB_DEPS)
 
-.PHONY: cblib
-cblib: $(CBLIB_OBJS)
-
 CUDA_SRCS = src/perft_gpu.cu
 CUDA_OBJS = $(CUDA_SRCS:src/%.cu=obj/%.cu.o)
 CUDA_DEPS = $(CUDA_OBJS:%.cu.o=%.cu.d)
 -include $(CUDA_DEPS)
 
-.PHONY: cblib
-cblib: $(CBLIB_OBJS)
+# -O2 - Optimize host code.
+# -Ofc 0 - Disable fast compile for device code.
+# -opt-info inline - Tell us when a function is inlined
+DEV_OPT_FLAGS= -O2 -Ofc 0 -opt-info inline
+gpu_usage:
+	$(NVCC) $(INCLUDE_DIRS) $(DEV_OPT_FLAGS) -Xptxas -v src/perft_gpu.cu
 
 $(BIN_DIR)/debug: obj/debug.o $(CBLIB_OBJS) $(CUDA_OBJS)
 	@mkdir -p $(dir $@)
