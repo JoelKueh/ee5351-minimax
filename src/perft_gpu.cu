@@ -22,6 +22,7 @@ extern "C" {
 #include "cblib_gpu/gpu_tables.cuh"
 #include "cblib_gpu/gpu_lib.cuh"
 #include "cblib_gpu/gpu_dbg.cuh"
+#include "cblib_gpu/gpu_count_moves.cuh"
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
 uint64_t *gpu_rook_atk_ptrs_h[64];
@@ -81,8 +82,9 @@ __global__ void perft_gpu_slow_kernel(
         gpu_traverse_to_next_child(&ss, &board);
 
         /* If we have bottomed out, then add to our count. */
-        if (ss.depth == depth) {
-            counts[ss.move_idx[0]-1] += 1;
+        if (ss.depth == depth - 1) {
+            gpu_gen_board_tables(&board, &state);
+            counts[ss.move_idx[0]-1] += gpu_count_moves(&board, &state);
             gpu_unmake(&ss, &board);
             continue;
         }
