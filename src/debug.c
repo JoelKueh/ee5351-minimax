@@ -166,8 +166,10 @@ int handle_perft(cb_board_t *board, perft_types_t type)
     if (type == PERFT_CPU) {
         return perft_cheat(board, depth);
     } else if (type == PERFT_GPU) {
-        return perft_gpu_slow(board, depth);
+        return perft_gpu_bfs(board, depth);
     }
+
+    return 0;
 }
 
 int handle_go(cb_board_t *board)

@@ -34,7 +34,7 @@ CBLIB_OBJS = $(CBLIB_SRCS:src/%.c=obj/%.o)
 CBLIB_DEPS = $(CBLIB_OBJS:%.o=%.d)
 -include $(CBLIB_DEPS)
 
-CUDA_SRCS = src/perft_gpu.cu
+CUDA_SRCS = src/perft_gpu_bfs.cu
 CUDA_OBJS = $(CUDA_SRCS:src/%.cu=obj/%.cu.o)
 CUDA_DEPS = $(CUDA_OBJS:%.cu.o=%.cu.d)
 -include $(CUDA_DEPS)

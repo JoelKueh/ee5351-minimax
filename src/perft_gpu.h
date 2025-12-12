@@ -11,7 +11,7 @@ extern "C" {
 
 void cblib_gpu_init();
 void cblib_gpu_free();
-int perft_gpu_slow(cb_board_t *board, int depth);
+int perft_gpu_bfs(cb_board_t *board, int depth);
 
 #ifdef __cplusplus
 }

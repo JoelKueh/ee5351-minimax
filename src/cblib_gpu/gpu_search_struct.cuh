@@ -15,7 +15,7 @@ __device__ __forceinline__ void gpu_unmake(gpu_search_struct_t *__restrict__ ss,
 __device__ __forceinline__ void gpu_ss_push_move(
         gpu_search_struct_t *__restrict__ ss, gpu_move_t move)
 {
-    ss->positions[ss->depth].moves[ss->move_counts[ss->depth]++]
+    ss->moves[ss->count++]
         [threadIdx.x & 0b11111] = move;
 }
 
