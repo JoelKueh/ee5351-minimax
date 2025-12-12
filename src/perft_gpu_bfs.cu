@@ -11,6 +11,8 @@ extern "C" {
 }
 #endif
 
+#include "./scan.cuh"
+#include "./reduce.cuh"
 #include "perft_gpu.h"
 #include "cblib_gpu/gpu_types.cuh"
 #include "cblib_gpu/gpu_board.cuh"
@@ -44,7 +46,7 @@ typedef struct {
     uint32_t nboards;
 } board_buffer_t;
 
-void h_bbuf_alloc(board_buffer_t *__restrict__ bbuf)
+__host__ __device__ void bbuf_alloc(board_buffer_t *__restrict__ bbuf)
 {
     bbuf->state = (gpu_history_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(gpu_history_t));
     bbuf->color = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
@@ -55,7 +57,7 @@ void h_bbuf_alloc(board_buffer_t *__restrict__ bbuf)
     bbuf->kings = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
 }
 
-void h_bbuf_free(board_buffer_t *__restrict__ bbuf)
+__host__ __device__ void bbuf_free(board_buffer_t *__restrict__ bbuf)
 {
     free(bbuf->state);
     free(bbuf->color);
@@ -66,7 +68,7 @@ void h_bbuf_free(board_buffer_t *__restrict__ bbuf)
     free(bbuf->kings);
 }
 
-void h_bbuf_push(board_buffer_t *__restrict__ board_buf,
+void bbuf_push(board_buffer_t *__restrict__ board_buf,
         cb_board_t *__restrict__ board)
 {
     /* Preapre the board. */
@@ -89,7 +91,7 @@ void h_bbuf_push(board_buffer_t *__restrict__ board_buf,
     board_buf->nboards += 1;
 }
 
-__host__ void d_bbuf_alloc(board_buffer_t *__restrict__ d_bbuf,
+__host__ void cuda_bbuf_alloc(board_buffer_t *__restrict__ d_bbuf,
         cudaStream_t s)
 {
     cudaMallocAsync((void**)&d_bbuf->state, d_bbuf->nboards * sizeof(gpu_history_t), s);
@@ -101,7 +103,7 @@ __host__ void d_bbuf_alloc(board_buffer_t *__restrict__ d_bbuf,
     cudaMallocAsync((void**)&d_bbuf->kings, d_bbuf->nboards * sizeof(uint64_t), s);
 }
 
-__host__ void d_bbuf_free(board_buffer_t *__restrict__ d_bbuf,
+__host__ void cuda_bbuf_free(board_buffer_t *__restrict__ d_bbuf,
         cudaStream_t s)
 {
     cudaFreeAsync(d_bbuf->state, s);
@@ -113,7 +115,7 @@ __host__ void d_bbuf_free(board_buffer_t *__restrict__ d_bbuf,
     cudaFreeAsync(d_bbuf->kings, s);
 }
 
-__host__ void d_bbuf_memcpy_to_device(
+__host__ void cuda_bbuf_memcpy(
         board_buffer_t *__restrict__ d_bbuf,
         board_buffer_t *__restrict__ bbuf, cudaStream_t s)
 {
@@ -280,6 +282,7 @@ __global__ void gpu_make_kernel(board_buffer_t in_boards,
 __global__ void pbfs_kernel_cdp(uint64_t __restrict__ *count,
         board_buffer_t boards, gpu_color_t turn)
 {
+#if 0
     /* Variables for the search. */
     board_buffer_t new_boards;
     board_buffer_t *p_new_boards = &new_boards;
@@ -332,7 +335,7 @@ __global__ void pbfs_kernel_cdp(uint64_t __restrict__ *count,
                 moves, source_board_indicies, turn);
 
         /* Allocate memory for the boards. */
-        d_bbuf_alloc(p_new_boards, s);
+        bbuf_alloc(p_new_boards, s);
 
         /* Make the moves on the boards. */
         dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
@@ -359,17 +362,19 @@ __global__ void pbfs_kernel_cdp(uint64_t __restrict__ *count,
     reduce<<<gridDim, blockDim, s>>>(count, counts);
 
     /* Destroy the child stream. */
-    cudaStreamDestroy(s);
+    cudaStreamDestroy(s)
+#endif
 }
 
-cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
-        uint64_t __restrict__ *counts, board_buffer_t __restrict__ *board_buf)
+cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
+        uint64_t *__restrict__ counts, board_buffer_t *__restrict__ board_buf)
 {
 
 }
 
-cb_errno_t pbfs_kernel_launch(cb_error_t __restrict__ *err,
-        uint64_t __restrict__ *count, board_buffer_t __restrict__ *bbuf)
+cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
+        uint64_t *__restrict__ count, board_buffer_t *__restrict__ bbuf,
+        gpu_color_t turn)
 {
     /* NOTE: We use cudaMallocAsync because we need device ordered malloc. */
 
@@ -377,23 +382,23 @@ cb_errno_t pbfs_kernel_launch(cb_error_t __restrict__ *err,
     uint64_t *d_count;
 
     /* Allocate device memory. */
-    d_bbuf.nboards = board_buf->nboards;
-    d_bbuf_free(d_bbuf, NULL);
-    cudaMallocAsync((void**)&d_count, sizeof(uint64_t));
+    d_bbuf.nboards = bbuf->nboards;
+    cuda_bbuf_free(&d_bbuf, NULL);
+    cudaMallocAsync((void**)&d_count, sizeof(uint64_t), NULL);
 
     /* Copy the board buffer to device memory. */
-    d_bbuf_memcpy_to_device(d_bbuf, bbuf, NULL)
+    cuda_bbuf_memcpy(&d_bbuf, bbuf, NULL);
 
     /* Launch the cuda dynamic parallelism kernel on the boards. */
     dim3 blockDim(1, 1, 1);
     dim3 gridDim(1, 1, 1);
-    pbfs_kernel_cdp<<<gridDim, blockDim>>>(d_count, d_bbuf);
+    pbfs_kernel_cdp<<<gridDim, blockDim>>>(d_count, d_bbuf, turn);
 
     /* Copy the result back to the host. */
     cudaMemcpyAsync(count, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
 
     /* Free up the board vector and kernel results. */
-    d_bbuf_free(d_bbuf, NULL);
+    cuda_bbuf_free(&d_bbuf, NULL);
     cudaFree(d_count);
 }
 
@@ -410,7 +415,7 @@ cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
 
     /* Base case. */
     if (depth < GPU_SEARCH_DEPTH) {
-        h_bbuf_push(board_buf, board);
+        bbuf_push(board_buf, board);
 
         /* Launch the kernel if our buffer is full. */
         if (board_buf->nboards == GPU_MAX_BOARDS_IN_BUF) {
@@ -456,7 +461,7 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     uint64_t end_time;
 
     /* Allocate space in the board buffer. */
-    h_bbuf_alloc(&h_bbuf);
+    bbuf_alloc(&h_bbuf);
 
     /* Exit early if depth is less than 1. */
     if (depth < GPU_SEARCH_DEPTH) {
@@ -507,7 +512,7 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     printf("\n");
 
     /* Free the allocated space in the board buffer. */
-    h_bbuf_free(&h_bbuf);
+    bbuf_free(&h_bbuf);
 
     return CB_EOK;
 }

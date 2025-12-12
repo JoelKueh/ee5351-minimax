@@ -20,7 +20,7 @@ typedef struct {
  * @param in The data to scan.
  * @param block_sums array of block sums computed during the scan.
  */
-__global__ void block_scan(uint32_t *out, uint32_t *in, uint32_t *block_sums)
+__global__ void scan(uint32_t *out, uint32_t *in, uint32_t *block_sums)
 {
     __shared__ uint32_t s_data[2 * SCAN_BLOCK_SIZE];
     int tx = threadIdx.x, bx = blockIdx.x;
@@ -73,37 +73,35 @@ __global__ void distribute(uint32_t *data, uint32_t *block_sums)
     __syncthreads();
 
     /* Distribute the block sum back to every element in the block. */
-    data[blockIdx.x * TILE_SIZE + threadIdx.x] += s_block_sum;
+    data[blockIdx.x * SCAN_TILE_SIZE + threadIdx.x] += s_block_sum;
 }
 
-__host__ __device__ void alloc_scan_buf
-        scan_buffer_t *__retrict__ buf, uint32_t n)
+__host__ void alloc_scan_buf(
+        scan_buffer_t *__restrict__ buf, uint32_t n)
 {
     int i = 0;
 
-    /* block_sums is padded to even multiples of TILE_SIZE at each level of iteration. */
-    n = ceil(n / (float)TILE_SIZE);
+    /* block_sums is padded to even multiples of SCAN_TILE_SIZE at each level of iteration. */
+    n = ceil(n / (float)SCAN_TILE_SIZE);
     while (n > 1) {
         /* Extend with zeros to a multiple of tile size. */
-        int npadded = ceil(n / (float)TILE_SIZE) * TILE_SIZE;
-        cudaMalloc((void **)&(bs_d->buffers[i]), npadded * sizeof(unsigned int));
-        cudaMemset(bs_d->buffers[i], 0, npadded * sizeof(unsigned int));
+        int npadded = ceil(n / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
+        cudaMalloc((void **)&(buf->buffers[i]), npadded * sizeof(unsigned int));
+        cudaMemset(buf->buffers[i], 0, npadded * sizeof(unsigned int));
 
         /* Update arrays and n. */
-        bs_d->counts[i] = n;
-        n = ceil(n / (float)TILE_SIZE);
+        buf->counts[i] = n;
+        n = ceil(n / (float)SCAN_TILE_SIZE);
         i++;
     }
 
     /* Set the counts at the last level. */
-    bs_d->counts[i] = n;
-    cudaMalloc((void **)&(bs_d->buffers[i]), n * sizeof(unsigned int));
-    bs_d->num_buffers = i + 1;
-
-    return bs_d;
+    buf->counts[i] = n;
+    cudaMalloc((void **)&(buf->buffers[i]), n * sizeof(unsigned int));
+    buf->num_buffers = i + 1;
 }
 
-__host__ __device__ void free_scan_buf(scan_buffer_t *__restrict__ buf)
+__host__ void free_scan_buf(scan_buffer_t *__restrict__ buf)
 {
     /* Free all of the buffers in the scan_buffer_t. */
     for (int i = 0; i < buf->num_buffers; i++) {
@@ -111,44 +109,44 @@ __host__ __device__ void free_scan_buf(scan_buffer_t *__restrict__ buf)
     }
 }
 
-__host__ __device__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
+__host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
 {
     scan_buffer_t buf;
     dim3 blockDim;
     dim3 gridDim;
 
     /* Preallocate intermediate result buffers. */
-    alloc_scan_buf(&buf);
+    alloc_scan_buf(&buf, n);
 
     /* Perform the first scan based on the input and output arrays. */
-    blockDim = dim3(BLOCK_SIZE, 1, 1);
-    gridDim = dim3(ceil(numElements / (float)TILE_SIZE), 1, 1);
-    block_scan<<<gridDim, blockDim>>>(outArray, inArray, blockSums->buffers[0]);
+    blockDim = dim3(SCAN_BLOCK_SIZE, 1, 1);
+    gridDim = dim3(ceil(n / (float)SCAN_TILE_SIZE), 1, 1);
+    scan<<<gridDim, blockDim>>>(out, in, buf.buffers[0]);
 
     /* If the computation fits on one block, compute in one shot. */
-    if (numElements <= TILE_SIZE)
+    if (n <= SCAN_TILE_SIZE)
         return;
 
     /* Perform subsequent scans on the block_sums_buffer. */
-    for (int i = 1; i < blockSums->num_buffers; i++) {
-        blockDim = dim3(BLOCK_SIZE, 1, 1);
-        gridDim = dim3(blockSums->counts[i], 1, 1);
-        block_scan<<<gridDim, blockDim>>>(blockSums->buffers[i-1],
-                blockSums->buffers[i-1], blockSums->buffers[i]);
+    for (int i = 1; i < buf.num_buffers; i++) {
+        blockDim = dim3(SCAN_BLOCK_SIZE, 1, 1);
+        gridDim = dim3(buf.counts[i], 1, 1);
+        scan<<<gridDim, blockDim>>>(buf.buffers[i-1],
+                buf.buffers[i-1], buf.buffers[i]);
         cudaDeviceSynchronize();
     }
 
     /* Preform propagations on the block_sums_buffer. */
-    for (int i = blockSums->num_buffers - 1; i >= 1; i--) {
-        blockDim = dim3(TILE_SIZE, 1, 1);
-        gridDim = dim3(blockSums->counts[i], 1, 1);
-        distribute<<<gridDim, blockDim>>>(blockSums->buffers[i-1], blockSums->buffers[i]);
+    for (int i = buf.num_buffers - 1; i >= 1; i--) {
+        blockDim = dim3(SCAN_TILE_SIZE, 1, 1);
+        gridDim = dim3(buf.counts[i], 1, 1);
+        distribute<<<gridDim, blockDim>>>(buf.buffers[i-1], buf.buffers[i]);
     }
 
     /* Perform the last distribution into the output array. */
-    blockDim = dim3(TILE_SIZE, 1, 1);
-    gridDim = dim3(blockSums->counts[0], 1, 1);
-    distribute<<<gridDim, blockDim>>>(outArray, blockSums->buffers[0]);
+    blockDim = dim3(SCAN_TILE_SIZE, 1, 1);
+    gridDim = dim3(buf.counts[0], 1, 1);
+    distribute<<<gridDim, blockDim>>>(out, buf.buffers[0]);
 
     /* Synchronize and free memory. */
     cudaDeviceSynchronize();
