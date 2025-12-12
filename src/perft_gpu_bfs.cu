@@ -89,43 +89,41 @@ void h_bbuf_push(board_buffer_t *__restrict__ board_buf,
     board_buf->nboards += 1;
 }
 
-__host__ __device__ void d_bbuf_alloc(board_buffer_t __restrict__ *d_bbuf,
+__host__ void d_bbuf_alloc(board_buffer_t *__restrict__ d_bbuf,
         cudaStream_t s)
 {
-    cudaMallocAsync((void**)&d_bbuf.state, d_bbuf.nboards * sizeof(gpu_history_t), s);
-    cudaMallocAsync((void**)&d_bbuf.color, d_bbuf.nboards * sizeof(uint64_t), s);
-    cudaMallocAsync((void**)&d_bbuf.pawns, d_bbuf.nboards * sizeof(uint64_t), s);
-    cudaMallocAsync((void**)&d_bbuf.knights, d_bbuf.nboards * sizeof(uint64_t), s);
-    cudaMallocAsync((void**)&d_bbuf.bishops, d_bbuf.nboards * sizeof(uint64_t), s);
-    cudaMallocAsync((void**)&d_bbuf.rooks, d_bbuf.nboards * sizeof(uint64_t), s);
-    cudaMallocAsync((void**)&d_bbuf.kings, d_bbuf.nboards * sizeof(uint64_t), s);
-    cudaMallocAsync((void**)&d_count, sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf->state, d_bbuf->nboards * sizeof(gpu_history_t), s);
+    cudaMallocAsync((void**)&d_bbuf->color, d_bbuf->nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf->pawns, d_bbuf->nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf->knights, d_bbuf->nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf->bishops, d_bbuf->nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf->rooks, d_bbuf->nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf->kings, d_bbuf->nboards * sizeof(uint64_t), s);
 }
 
-__host__ __device__ void d_bbuf_free(board_buffer_t __restrict__ *d_bbuf,
+__host__ void d_bbuf_free(board_buffer_t *__restrict__ d_bbuf,
         cudaStream_t s)
 {
-    cudaFreeAsync(d_bbuf.state, s);
-    cudaFreeAsync(d_bbuf.color, s);
-    cudaFreeAsync(d_bbuf.pawns, s);
-    cudaFreeAsync(d_bbuf.knights, s);
-    cudaFreeAsync(d_bbuf.bishops, s);
-    cudaFreeAsync(d_bbuf.rooks, s);
-    cudaFreeAsync(d_bbuf.kings, s);
-    cudaFreeAsync(count, s);
+    cudaFreeAsync(d_bbuf->state, s);
+    cudaFreeAsync(d_bbuf->color, s);
+    cudaFreeAsync(d_bbuf->pawns, s);
+    cudaFreeAsync(d_bbuf->knights, s);
+    cudaFreeAsync(d_bbuf->bishops, s);
+    cudaFreeAsync(d_bbuf->rooks, s);
+    cudaFreeAsync(d_bbuf->kings, s);
 }
 
-__host__ __device__ void d_bbuf_memcpy_to_device(
-        board_buffer_t __restrict__ *d_bbuf,
-        board_buffer_t __restrict__ *bbuf, cudaStream_t s)
+__host__ void d_bbuf_memcpy_to_device(
+        board_buffer_t *__restrict__ d_bbuf,
+        board_buffer_t *__restrict__ bbuf, cudaStream_t s)
 {
-    cudaMemcpyAsync(d_bbuf.state, bbuf->state, d_bbuf.nboards * sizeof(gpu_history_t), cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_bbuf.color, bbuf->color, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_bbuf.pawns, bbuf->pawns, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_bbuf.knights, bbuf->knights, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_bbuf.bishops, bbuf->bishops, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_bbuf.rooks, bbuf->rooks, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_bbuf.kings, bbuf->kings, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->state, bbuf->state, d_bbuf->nboards * sizeof(gpu_history_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->color, bbuf->color, d_bbuf->nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->pawns, bbuf->pawns, d_bbuf->nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->knights, bbuf->knights, d_bbuf->nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->bishops, bbuf->bishops, d_bbuf->nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->rooks, bbuf->rooks, d_bbuf->nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf->kings, bbuf->kings, d_bbuf->nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
 }
 
 void cblib_gpu_init()
