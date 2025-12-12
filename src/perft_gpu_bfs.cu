@@ -38,6 +38,51 @@ typedef struct {
     uint32_t nboards;
 } board_buffer_t;
 
+void h_bbuf_alloc(board_buffer_t *__restrict__ bbuf)
+{
+    bbuf->state = (gpu_history_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(gpu_history_t));
+    bbuf->color = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+    bbuf->pawns = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+    bbuf->knights = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+    bbuf->bishops = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+    bbuf->rooks = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+    bbuf->kings = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+}
+
+void h_bbuf_free(board_buffer_t *__restrict__ bbuf)
+{
+    free(bbuf->state);
+    free(bbuf->color);
+    free(bbuf->pawns);
+    free(bbuf->knights);
+    free(bbuf->bishops);
+    free(bbuf->rooks);
+    free(bbuf->kings);
+}
+
+void h_bbuf_push(board_buffer_t *__restrict__ board_buf,
+        cb_board_t *__restrict__ board)
+{
+    /* Preapre the board. */
+    board_buf->color[board_buf->nboards] = board->bb.color[CB_WHITE];
+    board_buf->pawns[board_buf->nboards] = 
+        board->bb.piece[CB_WHITE][CB_PTYPE_PAWN] | board->bb.piece[CB_BLACK][CB_PTYPE_PAWN];
+    board_buf->knights[board_buf->nboards] = 
+        board->bb.piece[CB_WHITE][CB_PTYPE_KNIGHT] | board->bb.piece[CB_BLACK][CB_PTYPE_KNIGHT];
+    board_buf->bishops[board_buf->nboards] = 
+        board->bb.piece[CB_WHITE][CB_PTYPE_BISHOP] | board->bb.piece[CB_BLACK][CB_PTYPE_BISHOP] |
+        board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
+    board_buf->rooks[board_buf->nboards] = 
+        board->bb.piece[CB_WHITE][CB_PTYPE_ROOK] | board->bb.piece[CB_BLACK][CB_PTYPE_ROOK] |
+        board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
+    board_buf->kings[board_buf->nboards] = 
+        board->bb.piece[CB_WHITE][CB_PTYPE_KING] | board->bb.piece[CB_BLACK][CB_PTYPE_KING];
+    board_buf->state[board_buf->nboards] = board->hist.data[board->hist.size-1].hist;
+    
+    /* Increment the board counter. */
+    board_buf->nboards += 1;
+}
+
 void cblib_gpu_init()
 {
     gpu_init_tables();
@@ -227,29 +272,6 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
 }
 
 
-void pbfs_board_buf_push(board_buffer_t *__restrict__ board_buf,
-        cb_board_t *__restrict__ board)
-{
-    /* Preapre the board. */
-    board_buf->color[board_buf->nboards] = board->bb.color[CB_WHITE];
-    board_buf->pawns[board_buf->nboards] = 
-        board->bb.piece[CB_WHITE][CB_PTYPE_PAWN] | board->bb.piece[CB_BLACK][CB_PTYPE_PAWN];
-    board_buf->knights[board_buf->nboards] = 
-        board->bb.piece[CB_WHITE][CB_PTYPE_KNIGHT] | board->bb.piece[CB_BLACK][CB_PTYPE_KNIGHT];
-    board_buf->bishops[board_buf->nboards] = 
-        board->bb.piece[CB_WHITE][CB_PTYPE_BISHOP] | board->bb.piece[CB_BLACK][CB_PTYPE_BISHOP] |
-        board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
-    board_buf->rooks[board_buf->nboards] = 
-        board->bb.piece[CB_WHITE][CB_PTYPE_ROOK] | board->bb.piece[CB_BLACK][CB_PTYPE_ROOK] |
-        board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
-    board_buf->kings[board_buf->nboards] = 
-        board->bb.piece[CB_WHITE][CB_PTYPE_KING] | board->bb.piece[CB_BLACK][CB_PTYPE_KING];
-    board_buf->state[board_buf->nboards] = board->hist.data[board->hist.size-1].hist;
-    
-    /* Increment the board counter. */
-    board_buf->nboards += 1;
-}
-
 cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
         board_buffer_t *board_buf, int depth)
 {
@@ -262,7 +284,7 @@ cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
 
     /* Base case. */
     if (depth < GPU_SEARCH_DEPTH) {
-        pbfs_board_buf_push(board_buf, board);
+        h_bbuf_push(board_buf, board);
 
         /* Launch the kernel if our buffer is full. */
         if (board_buf->nboards == GPU_MAX_BOARDS_IN_BUF) {
@@ -306,6 +328,9 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     /* Variables for timing the kernel. */
     uint64_t start_time;
     uint64_t end_time;
+
+    /* Allocate space in the board buffer. */
+    h_bbuf_alloc(&h_bbuf);
 
     /* Exit early if depth is less than 1. */
     if (depth < GPU_SEARCH_DEPTH) {
@@ -354,6 +379,9 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     printf("Nodes searched: %" PRIu64 "\n", total);
     printf("Time: %" PRIu64 "ms\n", (end_time - start_time) / 1000000);
     printf("\n");
+
+    /* Free the allocated space in the board buffer. */
+    h_bbuf_free(&h_bbuf);
 
     return CB_EOK;
 }
