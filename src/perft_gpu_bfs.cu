@@ -200,7 +200,7 @@ cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
     /* There's a lot to think through here. Good luck */
 }
 
-uint32_t pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
+void pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
         cb_board_t __restrict__ *board)
 {
     /* Preapre the board. */
@@ -221,8 +221,6 @@ uint32_t pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
     
     /* Increment the board counter. */
     board_buf->nboards += 1;
-
-    return board_idx;
 }
 
 cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
@@ -230,6 +228,7 @@ cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
         int depth)
 {
     /* Variables for making moves on the host. */
+    cb_errno_t result = CB_EOK;
     cb_mvlst_t mvlst;
     cb_move_t mv;
     cb_state_tables_t state;
@@ -237,8 +236,13 @@ cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
     /* Base case. */
     if (depth - GPU_SEARCH_DEPTH == 0) {
         pbfs_board_buf_push(board_buf, board);
-        if (board_buf.nboards == GPU_MAX_BOARDS_IN_BUF)
-            pbfs_kernel(err, cnt, board_buf);
+
+        /* Launch the kernel if our buffer is full. */
+        if (board_buf.nboards == GPU_MAX_BOARDS_IN_BUF) {
+            result = pbfs_kernel(err, cnt, board_buf);
+            board_buf->nboards == 0;
+        }
+        return result;
     }
 
     /* Generate the moves. */
@@ -283,9 +287,7 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
         return CB_EOK;
     }
 
-    /* Reserve the board history. This line guarantees that make will never write
-     * past its proper bounds. */
-    /* TODO: Investigate cpu gpu depth split. */
+    /* Reserve space in the board history. */
     if ((result = cb_reserve_for_make(&err, board,
                     depth - GPU_SEARCH_DEPTH)) != 0) {
         fprintf(stderr, "cb_reserve_for_make: %s\n", err.desc);
@@ -297,17 +299,30 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     cb_gen_board_tables(&state, board);
     cb_gen_moves(&mvlst, board, &state);
     for (i = 0; i < cb_mvlst_size(&mvlst); i++) {
+        /* Make the move for the current position. */
         mv = cb_mvlst_at(&mvlst, i);
         cb_make(board, mv);
+
+        /* Search the subtree on the GPU. */
         if ((result = pbfs_host(&err, &cnt, board, depth - 1)) != 0) {
-            fprintf(stderr, "cb_reserve_for_make: %s\n", err.desc);
+            fprintf(stderr, "pbfs: %s\n", err.desc);
             return result;
         }
+
+        /* Need one more kernel for the remaining moves. */
+        if ((result = pbfs_kernel(&err, &cnt, board, depth - 1)) != 0) {
+            fprintf(stderr, "pbfs: %s\n", err.desc);
+            return result;
+        }
+
+        /* Update the total and write the subtree count to the console. */
         total += cnt;
         cb_mv_to_uci_algbr(buf, mv);
         printf("%s: %" PRIu64 "\n", buf, cnt);
         cb_unmake(board);
     }
+
+    /* Check the end time and write the total to the console. */
     end_time = time_ns();
     printf("\n");
     printf("Nodes searched: %" PRIu64 "\n", total);
