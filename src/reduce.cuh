@@ -63,11 +63,10 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
     n >>= 3;
     dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
     dim3 gridDim(ceil((float)n / REDUCTION_BLOCK_SIZE), 1, 1);
-    u64_sum_bytes<<<gridDim, blockDim, 0, s>>>(u64_data, n);
+    u64_sum_bytes<<<gridDim, blockDim, 0, s>>>(u64_data, n >> 3);
 
     /* Allocate swap buffer for h_data on the GPU. */
     uint64_t *d_data[2];
-    cudaMalloc((void **)&(d_data[0]), n * sizeof(uint64_t));
     cudaMalloc((void **)&(d_data[1]), ceil((float)n / REDUCTION_BLOCK_SIZE) * sizeof(uint64_t));
     d_data[0] = u64_data;
 
@@ -86,8 +85,9 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
         i ^= 1;
     }
 
-    /* Copy the reduced sum back to the CPU. */
+    /* Copy the reduced sum back to the CPU and free gpu memory. */
     cudaMemcpy(result, d_data[i], 1 * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_data[1]);
 }
 
 #endif /* REDUCE_H */
