@@ -20,8 +20,8 @@ extern "C" {
 #include "cblib_gpu/gpu_dbg.cuh"
 #include "cblib_gpu/gpu_count_moves.cuh"
 
-#define GPU_SEARCH_DEPTH 4
-#define GPU_MAX_BOARDS_IN_BUF (1 << 10)
+#define GPU_SEARCH_DEPTH 5
+#define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
 uint64_t *gpu_rook_atk_ptrs_h[64];
@@ -71,8 +71,14 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
     counts[tid] = gpu_count_moves(&board, &state);
 }
 
-__global__ void scan(){
-    //TODO
+__global__ void scan()
+{
+    /* TODO: Copy me from the other implementation. */
+}
+
+__global__ void reduce()
+{
+    /* TODO: Copy me from what you did for class. */
 }
 
 __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *in_indicies,
@@ -161,9 +167,37 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
 }
 
 cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
-        uint64_t __restrict__ *counts, gpu_board_t __restrict__ *boards)
+        uint64_t __restrict__ *counts, board_buffer_t __restrict__ *board_buf)
 {
-    
+    /* Copy the board buffer to the kernel. */
+
+    /* While we haven't bottomed out. */
+
+        /* Count moves at the current position. */
+        gpu_count_moves();
+
+        /* Scan the move counts to get output indicies. */
+        scan();
+
+        /* cudaMalloc a new array of moves based on the max element of the scan. */
+        /* we might run out of memory here, use cb_mkerr to report it. */
+
+        /* cudaMalloc a new array of boards based on the max element of the scan. */
+        /* I think we can play with this here. It will probably be worth it to
+         * make a "make_move_and_count_children" kernel to skip allocating an
+         * array of boards at the last layer. For now, just generate boards
+         * at every level. */
+
+        /* Generate moves at the current position. */
+        gpu_gen_moves();
+
+        /* Apply moves to boards at the current position. */
+        gpu_make_moves();
+
+        /* Reduction of results? */
+        reduce();
+
+    /* There's a lot to think through here. Good luck */
 }
 
 uint32_t pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
@@ -203,7 +237,8 @@ cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
     /* Base case. */
     if (depth - GPU_SEARCH_DEPTH == 0) {
         pbfs_board_buf_push(board_buf, board);
-        if (board_buf.nboards == GPU_
+        if (board_buf.nboards == GPU_MAX_BOARDS_IN_BUF)
+            pbfs_kernel(err, cnt, board_buf);
     }
 
     /* Generate the moves. */
