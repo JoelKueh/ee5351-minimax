@@ -46,6 +46,12 @@ void cblib_gpu_free()
     gpu_free_tables();
 }
 
+/**
+ * @brief Counts a vector of moves on a vector of boards.
+ * @param boards The vector of boards stored as a board_buffer_t.
+ * @param counts The vector of counts.
+ * @param turn The current turn.
+ */
 __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
         gpu_color_t turn)
 {
@@ -81,14 +87,24 @@ __global__ void reduce()
     /* TODO: Copy me from what you did for class. */
 }
 
-__global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *in_indicies,
-        gpu_move_t *moves, uint32_t *out_indicies, gpu_color_t turn)
+/**
+ * @brief Generates a vector of moves on a vector of boards.
+ * @param boards The vector of boards stored as a board_buffer_t.
+ * @param write_indicies The vector of indicies where each thread should
+ * start writing in *moves and *move_source_board_mapping.
+ * @param moves The vector of moves.
+ * @param move_source_board_mapping Which board does each move belong to.
+ * @param turn The current turn.
+ */
+__global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
+        gpu_move_t *moves, uint32_t *move_source_board_mapping,
+        gpu_color_t turn)
 {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     gpu_board_t board;
     gpu_state_tables_t state;
     gpu_search_struct_t ss;
-    uint32_t out_idx;
+    uint32_t write_idx;
     uint8_t i;
 
     /* Load the board from global memory. */
@@ -105,10 +121,10 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *in_indicies,
         board.bb.rooks || board.bb.kings;
 
     /* Load the output index from global memory. */
-    out_idx = in_indicies[tid];
+    write_idx = write_indicies[tid];
 
     /* Generate all of the moves. */
-    ss.moves = moves + out_idx;
+    ss.moves = moves + write_idx;
     gpu_gen_board_tables(&board, &state);
     gpu_gen_moves(&ss, &board, &state);
 
@@ -116,19 +132,16 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *in_indicies,
      * Theoritically this removes the need for the inverval expand kenrnel.
      */
     for (i = 0; i < ss.count; i++)
-        out_indicies[out_idx] = tid;
+        move_source_board_mapping[write_idx] = tid;
 }
 
 /**
- * Inputs:
- *  - in_boards: Vector of boards.
- *  - moves: Vector of moves (index by thread index).
- *  - board_idx: Mapping of thread index to index in in_boards.
- *    e.g. start_board = in_boards[board_idx[tx + bx * bdim.x]]
- *
- * Outputs:
- *  - out_boards: Vector of boards (index by thread index)
- *    out_boards[tx + bx * bdim.x] = end_board
+ * @brief Generates a vector of boards by applying moves on a vector of boards.
+ * @param in_boards The vector of input boards.
+ * @param out_boards The vector of output boards.
+ * @param board_indicies Which board should we operate on? (one per thread)
+ * @param moves The vector of moves. (one per thread)
+ * @param turn The current turn.
  */
 __global__ void gpu_make_moves(board_buffer_t in_boards,
         board_buffer_t out_boards, uint32_t *board_indices,
@@ -194,10 +207,10 @@ cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
         /* Apply moves to boards at the current position. */
         gpu_make_moves();
 
-        /* Reduction of results? */
-        reduce();
-
     /* There's a lot to think through here. Good luck */
+
+    /* Reduction of results? */
+    reduce();
 }
 
 void pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
