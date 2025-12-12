@@ -21,6 +21,12 @@ extern "C" {
 #include "cblib_gpu/gpu_dbg.cuh"
 #include "cblib_gpu/gpu_count_moves.cuh"
 
+/* Block dim parameters. */
+#define CHESS_BLOCK_DIM 64
+#define REDUCTION_BLOCK_DIM 1024
+#define SCAN_BLOCK_DIM 1024
+
+/* Gpu search depth and launch parameters. */
 #define GPU_SEARCH_DEPTH 5
 #define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
@@ -83,6 +89,45 @@ void h_bbuf_push(board_buffer_t *__restrict__ board_buf,
     board_buf->nboards += 1;
 }
 
+__host__ __device__ void d_bbuf_alloc(board_buffer_t __restrict__ *d_bbuf,
+        cudaStream_t s)
+{
+    cudaMallocAsync((void**)&d_bbuf.state, d_bbuf.nboards * sizeof(gpu_history_t), s);
+    cudaMallocAsync((void**)&d_bbuf.color, d_bbuf.nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf.pawns, d_bbuf.nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf.knights, d_bbuf.nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf.bishops, d_bbuf.nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf.rooks, d_bbuf.nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_bbuf.kings, d_bbuf.nboards * sizeof(uint64_t), s);
+    cudaMallocAsync((void**)&d_count, sizeof(uint64_t), s);
+}
+
+__host__ __device__ void d_bbuf_free(board_buffer_t __restrict__ *d_bbuf,
+        cudaStream_t s)
+{
+    cudaFreeAsync(d_bbuf.state, s);
+    cudaFreeAsync(d_bbuf.color, s);
+    cudaFreeAsync(d_bbuf.pawns, s);
+    cudaFreeAsync(d_bbuf.knights, s);
+    cudaFreeAsync(d_bbuf.bishops, s);
+    cudaFreeAsync(d_bbuf.rooks, s);
+    cudaFreeAsync(d_bbuf.kings, s);
+    cudaFreeAsync(count, s);
+}
+
+__host__ __device__ void d_bbuf_memcpy_to_device(
+        board_buffer_t __restrict__ *d_bbuf,
+        board_buffer_t __restrict__ *bbuf, cudaStream_t s)
+{
+    cudaMemcpyAsync(d_bbuf.state, bbuf->state, d_bbuf.nboards * sizeof(gpu_history_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf.color, bbuf->color, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf.pawns, bbuf->pawns, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf.knights, bbuf->knights, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf.bishops, bbuf->bishops, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf.rooks, bbuf->rooks, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_bbuf.kings, bbuf->kings, d_bbuf.nboards * sizeof(uint64_t), cudaMemcpyHostToDevice);
+}
+
 void cblib_gpu_init()
 {
     gpu_init_tables();
@@ -138,7 +183,7 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
  * @param move_source_board_mapping Which board does each move belong to.
  * @param turn The current turn.
  */
-__global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
+__global__ void gpu_mvgen_kernel(board_buffer_t boards, uint32_t *write_indicies,
         gpu_move_t *moves, uint32_t *move_source_board_mapping,
         gpu_color_t turn)
 {
@@ -191,7 +236,7 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
  * @param nmoves The number of moves in the move vector.
  * @param turn The current turn.
  */
-__global__ void gpu_make_moves(board_buffer_t in_boards,
+__global__ void gpu_make_kernel(board_buffer_t in_boards,
         board_buffer_t out_boards, uint32_t *board_indices,
         gpu_move_t *moves, uint32_t nmoves, gpu_color_t turn)
 {
@@ -234,41 +279,124 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
     out_boards.state[tid] = board.state;
 }
 
-cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
-        uint64_t *__restrict__ counts, board_buffer_t *__restrict__ board_buf)
+__global__ void pbfs_kernel_cdp(uint64_t __restrict__ *count,
+        board_buffer_t boards, gpu_color_t turn)
 {
-#if 0
-    /* Copy the board buffer to the kernel. */
+    /* Variables for the search. */
+    board_buffer_t new_boards;
+    board_buffer_t *p_new_boards = &new_boards;
+    board_buffer_t *p_boards = &boards;
+    gpu_move_t *moves;
+    uint32_t *move_indicies;
+    uint32_t *source_board_indicies;
+    uint8_t *counts;
+    uint32_t nmoves;
 
-    /* While we haven't bottomed out. */
+    /* Create stream for device kernel calls. */
+    cudaStream_t s;
+    cudaStreamCreate(&s);
 
-        /* Count moves at the current position. */
-        gpu_count_moves();
+    /* Perform the search to generate the top level board vector. */
+    for (int i = 0; i < GPU_SEARCH_DEPTH; i++) {
+        /* Allocate memory for the counts. */
+        cudaMalloc((void**)&counts, boards->nboards * sizeof(uint32_t));
 
-        /* Scan the move counts to get output indicies. */
-        scan();
+        /* Count the moves at the current level. */
+        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
+        dim3 gridDim(ceil((float)boards->nboards / CHESS_BLOCK_DIM), 1, 1);
+        gpu_mvcnt_kernel<<<gridDim, blockDim, s>>>(boards, counts, turn);
 
-        /* cudaMalloc a new array of moves based on the max element of the scan. */
-        /* we might run out of memory here, use cb_mkerr to report it. */
+        /* Break out of the loop after generating counts if we are done. */
+        if (i == i - GPU_SEARCH_DEPTH)
+            break;
 
-        /* cudaMalloc a new array of boards based on the max element of the scan. */
-        /* I think we can play with this here. It will probably be worth it to
-         * make a "make_move_and_count_children" kernel to skip allocating an
-         * array of boards at the last layer. For now, just generate boards
-         * at every level. */
+        /* Allocate memory for the move indicies that we will scan. */
+        cudaMalloc((void**)&move_indicies, (boards->nboards + 1) * sizeof(uint32_t));
 
-        /* Generate moves at the current position. */
-        gpu_gen_moves();
+        /* Scan the counts returned from the previous kernel. */
+        dim3 blockDim(SCAN_BLOCK_DIM, 1, 1);
+        dim3 gridDim(ceil((float)boards->nboards / SCAN_BLOCK_DIM), 1, 1);
+        scan<<<gridDim, blockDim, s>>>((move_indicies + 1), counts, boards->nboards);
+        move_indicies[0] = 0;
 
-        /* Apply moves to boards at the current position. */
-        gpu_make_moves();
+        /* Synchronize with the stream to get the results of the scan. */
+        cudaStreamSynchronize(s);
 
-    /* There's a lot to think through here. Good luck */
+        /* Allocate memory for the moves. */
+        nmoves = move_indicies[boards->nboards];
+        cudaMalloc((void**)&moves, nmoves * sizeof(gpu_move_t));
+        cudaMalloc((void**)&source_board_indicies, nmoves * sizeof(uint32_t));
 
-    /* Reduction of results? */
-    reduce();
-#endif
-    return CB_EOK;
+        /* Generate the moves. */
+        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
+        dim3 gridDim(ceil((float) / CHESS_BLOCK_DIM), 1, 1);
+        gpu_mvgen_kernel<<<gridDim, blockDim, s>>>(boards, write_indicies,
+                moves, source_board_indicies, turn);
+
+        /* Allocate memory for the boards. */
+        d_bbuf_alloc(p_new_boards, s);
+
+        /* Make the moves on the boards. */
+        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
+        dim3 gridDim(ceil((float)boards->nboards / CHESS_BLOCK_DIM), 1, 1);
+        gpu_make_kernel<<<gridDim, blockDim, s>>>(p_boards, p_new_boards,
+                source_board_indicies, moves, turn);
+
+        /* Synchronize with the stream before performing this rounds frees. */
+        cudaStreamSynchronize(s);
+        cudaFree(counts);
+        cudaFree(move_indices);
+        cudaFree(moves);
+        cudaFree(source_board_indicies);
+        bbuf_free(p_boards, s);
+        p_boards = p_new_boards;
+
+        /* We have just made a move, change the current turn. */
+        turn = !turn;
+    }
+
+    /* Reduce the count vector. */
+    dim3 blockDim(REDUCTION_BLOCK_DIM, 1, 1);
+    dim3 gridDim(ceil((float)boards->nboards / REDUCTION_BLOCK_DIM), 1, 1);
+    reduce<<<gridDim, blockDim, s>>>(count, counts);
+
+    /* Destroy the child stream. */
+    cudaStreamDestroy(s);
+}
+
+cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
+        uint64_t __restrict__ *counts, board_buffer_t __restrict__ *board_buf)
+{
+
+}
+
+cb_errno_t pbfs_kernel_launch(cb_error_t __restrict__ *err,
+        uint64_t __restrict__ *count, board_buffer_t __restrict__ *bbuf)
+{
+    /* NOTE: We use cudaMallocAsync because we need device ordered malloc. */
+
+    board_buffer_t d_bbuf;
+    uint64_t *d_count;
+
+    /* Allocate device memory. */
+    d_bbuf.nboards = board_buf->nboards;
+    d_bbuf_free(d_bbuf, NULL);
+    cudaMallocAsync((void**)&d_count, sizeof(uint64_t));
+
+    /* Copy the board buffer to device memory. */
+    d_bbuf_memcpy_to_device(d_bbuf, bbuf, NULL)
+
+    /* Launch the cuda dynamic parallelism kernel on the boards. */
+    dim3 blockDim(1, 1, 1);
+    dim3 gridDim(1, 1, 1);
+    pbfs_kernel_cdp<<<gridDim, blockDim>>>(d_count, d_bbuf);
+
+    /* Copy the result back to the host. */
+    cudaMemcpyAsync(count, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+
+    /* Free up the board vector and kernel results. */
+    d_bbuf_free(d_bbuf, NULL);
+    cudaFree(d_count);
 }
 
 
