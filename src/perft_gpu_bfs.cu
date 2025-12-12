@@ -362,21 +362,12 @@ __global__ void pbfs_kernel_cdp(uint64_t __restrict__ *count,
     reduce<<<gridDim, blockDim, s>>>(count, counts);
 
     /* Destroy the child stream. */
-<<<<<<< HEAD
     cudaStreamDestroy(s);
-#endif
-}
-
-cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
-        uint64_t __restrict__ *count, board_buffer_t __restrict__ *board_buf, gpu_color_t in_turn)
-=======
-    cudaStreamDestroy(s)
 #endif
 }
 
 cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         uint64_t *__restrict__ counts, board_buffer_t *__restrict__ board_buf)
->>>>>>> 10a73303c0961938b170388652dd53b4976a3615
 {
     /* Variables for the search. */
 	board_buffer_t boards = *board_buf;
@@ -481,11 +472,7 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     cudaMallocAsync((void**)&d_count, sizeof(uint64_t), NULL);
 
     /* Copy the board buffer to device memory. */
-<<<<<<< HEAD
-    d_bbuf_memcpy_to_device(d_bbuf, bbuf, NULL);
-=======
     cuda_bbuf_memcpy(&d_bbuf, bbuf, NULL);
->>>>>>> 10a73303c0961938b170388652dd53b4976a3615
 
     /* Launch the cuda dynamic parallelism kernel on the boards. */
     dim3 blockDim(1, 1, 1);
