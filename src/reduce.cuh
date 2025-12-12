@@ -30,7 +30,7 @@ __global__ void reduce(uint32_t *out, uint32_t *in, uint32_t n)
         out[bx] = shared[0];
 }
 
-__host__ __device__ void launch_reduction(uint32_t *result, uint32_t *data,
+__host__ void launch_reduction(uint32_t *result, uint32_t *data,
         uint32_t n, cudaStream_t s)
 {
     /* Allocate swap buffer for h_data on the GPU. */
@@ -41,14 +41,14 @@ __host__ __device__ void launch_reduction(uint32_t *result, uint32_t *data,
 
     /* Launch the kernel until we only have one element remaining. */
     int i = 0;
-    while (num_elements > 1) {
+    while (n > 1) {
         /* Launch the kernel to perform the reduction for the current size. */
-        dim3 blockDim(BLOCK_SIZE, 1, 1);
-        dim3 gridDim(ceil((float)num_elements / BLOCK_SIZE), 1, 1);
-        reduction<<<gridDim, blockDim>>>(d_data[i], d_data[i ^ 1], num_elements);
+        dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
+        dim3 gridDim(ceil((float)n / REDUCTION_BLOCK_SIZE), 1, 1);
+        reduce<<<gridDim, blockDim>>>(d_data[i], d_data[i ^ 1], n);
 
         /* One reduction cuts size of input by twice BLOCK_SIZE. */
-        num_elements = ceil((float)num_elements / (2 * BLOCK_SIZE));
+        n = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE));
 
         /* Swap the output and input buffers. */
         i ^= 1;
