@@ -226,6 +226,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     return CB_EOK;
 }
 
+
 void pbfs_board_buf_push(board_buffer_t *__restrict__ board_buf,
         cb_board_t *__restrict__ board)
 {
@@ -249,9 +250,8 @@ void pbfs_board_buf_push(board_buffer_t *__restrict__ board_buf,
     board_buf->nboards += 1;
 }
 
-cb_errno_t pbfs_host(cb_error_t *__restrict__ err, uint64_t *__restrict__ cnt,
-        cb_board_t *__restrict__ board, board_buffer_t *__restrict__ board_buf,
-        int depth)
+cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
+        board_buffer_t *board_buf, int depth)
 {
     /* Variables for making moves on the host. */
     cb_errno_t result = CB_EOK;
@@ -261,7 +261,7 @@ cb_errno_t pbfs_host(cb_error_t *__restrict__ err, uint64_t *__restrict__ cnt,
     uint8_t i;
 
     /* Base case. */
-    if (depth - GPU_SEARCH_DEPTH == 0) {
+    if (depth < GPU_SEARCH_DEPTH) {
         pbfs_board_buf_push(board_buf, board);
 
         /* Launch the kernel if our buffer is full. */
@@ -308,8 +308,8 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     uint64_t end_time;
 
     /* Exit early if depth is less than 1. */
-    if (depth < 1) {
-        printf("No perft with a depth below 1\n");
+    if (depth < GPU_SEARCH_DEPTH) {
+        printf("No perft with a depth below %d\n", GPU_SEARCH_DEPTH);
         return CB_EOK;
     }
 
