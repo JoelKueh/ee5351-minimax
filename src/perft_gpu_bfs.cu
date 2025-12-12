@@ -59,6 +59,10 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
     gpu_board_t board;
     gpu_state_tables_t state;
 
+    /* Early return for out-of-range threads. */
+    if (tid > boards.nboards)
+        return;
+
     /* Load the board from global memory. */
     board.bb.pawns = boards.pawns[tid];
     board.bb.knights = boards.knights[tid];
@@ -107,6 +111,10 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
     uint32_t write_idx;
     uint8_t i;
 
+    /* Early return for out-of-range threads. */
+    if (tid > boards.nboards)
+        return;
+
     /* Load the board from global memory. */
     board.bb.pawns = boards.pawns[tid];
     board.bb.knights = boards.knights[tid];
@@ -141,14 +149,19 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
  * @param out_boards The vector of output boards.
  * @param board_indicies Which board should we operate on? (one per thread)
  * @param moves The vector of moves. (one per thread)
+ * @param nmoves The number of moves in the move vector.
  * @param turn The current turn.
  */
 __global__ void gpu_make_moves(board_buffer_t in_boards,
         board_buffer_t out_boards, uint32_t *board_indices,
-        gpu_move_t *moves, gpu_color_t turn) {
+        gpu_move_t *moves, uint32_t nmoves, gpu_color_t turn) {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     gpu_board_t board;
     gpu_move_t move;
+
+    /* Early return for out-of-range threads. */
+    if (tid > nmoves)
+        return;
 
     /* Load the board index from global memory. */
     uint32_t board_idx = board_indices[tid];
