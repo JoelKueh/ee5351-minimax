@@ -6,7 +6,7 @@
 
 #define REDUCTION_BLOCK_SIZE 1024
 
-__global__ void reduce(uint32_t *out, uint32_t *in, uint32_t n)
+__global__ void reduce(uint64_t *out, uint64_t *in, uint32_t n)
 {
     __shared__ int shared[2 * REDUCTION_BLOCK_SIZE];
     const int tx = threadIdx.x, bx = blockIdx.x;
@@ -30,14 +30,46 @@ __global__ void reduce(uint32_t *out, uint32_t *in, uint32_t n)
         out[bx] = shared[0];
 }
 
-__host__ void launch_reduction(uint32_t *result, uint32_t *data,
+__global__ void u64_sum_bytes(uint64_t *data, uint32_t n)
+{
+    const int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    uint64_t original;
+    uint64_t sum = 0;
+
+    /* Guard for out of bounds access. */
+    if (tid > n)
+        return;
+
+    /* Read the value from data. */
+    original = data[tid];
+
+    /* Sum over all bytes in the u64. */
+    for (int i = 0; i < 8; i++) {
+        sum += original & 0xFF;
+        original >>= 8;
+    }
+    
+    /* Write the result. */
+    data[tid] = sum;
+}
+
+__host__ void launch_reduction(uint64_t *result, uint8_t *data,
         uint32_t n, cudaStream_t s)
 {
+    /* Cast the input data to a uint64_t*. */
+    uint64_t *u64_data = (uint64_t*)data;
+
+    /* Compute the sum of all bytes in the u64. */
+    n >>= 3;
+    dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
+    dim3 gridDim(ceil((float)n / REDUCTION_BLOCK_SIZE), 1, 1);
+    u64_sum_bytes<<<gridDim, blockDim, 0, s>>>(u64_data, n);
+
     /* Allocate swap buffer for h_data on the GPU. */
-    unsigned int *d_data[2];
-    cudaMalloc((void **)&(d_data[0]), n * sizeof(uint32_t));
-    cudaMalloc((void **)&(d_data[1]), ceil((float)n / REDUCTION_BLOCK_SIZE) * sizeof(int));
-    cudaMemcpy(d_data[0], data, n * sizeof(int), cudaMemcpyHostToDevice);
+    uint64_t *d_data[2];
+    cudaMalloc((void **)&(d_data[0]), n * sizeof(uint64_t));
+    cudaMalloc((void **)&(d_data[1]), ceil((float)n / REDUCTION_BLOCK_SIZE) * sizeof(uint64_t));
+    d_data[0] = u64_data;
 
     /* Launch the kernel until we only have one element remaining. */
     int i = 0;
