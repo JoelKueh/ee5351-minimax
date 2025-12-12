@@ -1,0 +1,159 @@
+
+#ifndef SCAN_H
+#define SCAN_H
+
+#include <cstdint>
+
+#define SCAN_BLOCK_SIZE 1024
+#define SCAN_TILE_SIZE (SCAN_BLOCK_SIZE >> 2)
+
+/* Struct to hold the intermediate results of a scan. */
+typedef struct {
+    int num_buffers;            /* Number of buffers in the structure. */
+    int counts[7];              /* Counts of non-padded elements in buffer. */
+    unsigned int *buffers[7];   /* Array of buffer pointers. */
+} scan_buffer_t;
+
+/**
+ * @breif Performs an in-place block-wise scan on all elements of data.
+ * @param out The block-wise scanned data.
+ * @param in The data to scan.
+ * @param block_sums array of block sums computed during the scan.
+ */
+__global__ void block_scan(uint32_t *out, uint32_t *in, uint32_t *block_sums)
+{
+    __shared__ uint32_t s_data[2 * SCAN_BLOCK_SIZE];
+    int tx = threadIdx.x, bx = blockIdx.x;
+
+    /* Collaborative shared memory load from input. */
+    s_data[tx] = in[bx * SCAN_TILE_SIZE + tx];
+    s_data[SCAN_BLOCK_SIZE + tx] = in[bx * SCAN_TILE_SIZE + SCAN_BLOCK_SIZE + tx];
+    __syncthreads();
+
+    /* Summation part of the scan. */
+    for (int stride = 1; stride <= SCAN_BLOCK_SIZE; stride <<= 1) {
+        int idx = (tx + 1) * 2 * stride - 1;
+        if (idx < 2 * SCAN_BLOCK_SIZE)
+            s_data[idx] += s_data[idx - stride];
+        __syncthreads();
+    }
+
+    /* Distribution part of the scan. */
+    for (int stride = (SCAN_BLOCK_SIZE >> 1); stride > 0; stride >>= 1) {
+        int idx = (tx + 1) * 2 * stride - 1;
+        if (idx + stride < 2 * SCAN_BLOCK_SIZE)
+            s_data[idx + stride] += s_data[idx];
+        __syncthreads();
+    }
+
+    /* Copy back the result. */
+    out[bx * SCAN_TILE_SIZE + tx] = s_data[tx];
+    out[bx * SCAN_TILE_SIZE + SCAN_BLOCK_SIZE + tx] = s_data[SCAN_BLOCK_SIZE + tx];
+
+    /* First thread copys back the block sum. */
+    if (tx == 0) {
+        block_sums[bx] = s_data[2 * SCAN_BLOCK_SIZE - 1];
+    }
+}
+
+/**
+ * @breif Distribute block sums to all elements in data.
+ * @param data The block-wise scanned matrix.
+ * @param block_sums The sums of each block in data.
+ */
+__global__ void distribute(uint32_t *data, uint32_t *block_sums)
+{
+    /* Shared memory for the single integer that we will distribute. */
+    __shared__ uint32_t s_block_sum;
+
+    /* Load the block sum into shared memory. */
+    int sum_idx = blockIdx.x - 1;
+    if (threadIdx.x == 0)
+        s_block_sum = sum_idx >= 0 ? block_sums[sum_idx] : 0;
+    __syncthreads();
+
+    /* Distribute the block sum back to every element in the block. */
+    data[blockIdx.x * TILE_SIZE + threadIdx.x] += s_block_sum;
+}
+
+__host__ __device__ void alloc_scan_buf
+        scan_buffer_t *__retrict__ buf, uint32_t n)
+{
+    int i = 0;
+
+    /* block_sums is padded to even multiples of TILE_SIZE at each level of iteration. */
+    n = ceil(n / (float)TILE_SIZE);
+    while (n > 1) {
+        /* Extend with zeros to a multiple of tile size. */
+        int npadded = ceil(n / (float)TILE_SIZE) * TILE_SIZE;
+        cudaMalloc((void **)&(bs_d->buffers[i]), npadded * sizeof(unsigned int));
+        cudaMemset(bs_d->buffers[i], 0, npadded * sizeof(unsigned int));
+
+        /* Update arrays and n. */
+        bs_d->counts[i] = n;
+        n = ceil(n / (float)TILE_SIZE);
+        i++;
+    }
+
+    /* Set the counts at the last level. */
+    bs_d->counts[i] = n;
+    cudaMalloc((void **)&(bs_d->buffers[i]), n * sizeof(unsigned int));
+    bs_d->num_buffers = i + 1;
+
+    return bs_d;
+}
+
+__host__ __device__ void free_scan_buf(scan_buffer_t *__restrict__ buf)
+{
+    /* Free all of the buffers in the scan_buffer_t. */
+    for (int i = 0; i < buf->num_buffers; i++) {
+        cudaFree(buf->buffers[i]);
+    }
+}
+
+__host__ __device__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
+{
+    scan_buffer_t buf;
+    dim3 blockDim;
+    dim3 gridDim;
+
+    /* Preallocate intermediate result buffers. */
+    alloc_scan_buf(&buf);
+
+    /* Perform the first scan based on the input and output arrays. */
+    blockDim = dim3(BLOCK_SIZE, 1, 1);
+    gridDim = dim3(ceil(numElements / (float)TILE_SIZE), 1, 1);
+    block_scan<<<gridDim, blockDim>>>(outArray, inArray, blockSums->buffers[0]);
+
+    /* If the computation fits on one block, compute in one shot. */
+    if (numElements <= TILE_SIZE)
+        return;
+
+    /* Perform subsequent scans on the block_sums_buffer. */
+    for (int i = 1; i < blockSums->num_buffers; i++) {
+        blockDim = dim3(BLOCK_SIZE, 1, 1);
+        gridDim = dim3(blockSums->counts[i], 1, 1);
+        block_scan<<<gridDim, blockDim>>>(blockSums->buffers[i-1],
+                blockSums->buffers[i-1], blockSums->buffers[i]);
+        cudaDeviceSynchronize();
+    }
+
+    /* Preform propagations on the block_sums_buffer. */
+    for (int i = blockSums->num_buffers - 1; i >= 1; i--) {
+        blockDim = dim3(TILE_SIZE, 1, 1);
+        gridDim = dim3(blockSums->counts[i], 1, 1);
+        distribute<<<gridDim, blockDim>>>(blockSums->buffers[i-1], blockSums->buffers[i]);
+    }
+
+    /* Perform the last distribution into the output array. */
+    blockDim = dim3(TILE_SIZE, 1, 1);
+    gridDim = dim3(blockSums->counts[0], 1, 1);
+    distribute<<<gridDim, blockDim>>>(outArray, blockSums->buffers[0]);
+
+    /* Synchronize and free memory. */
+    cudaDeviceSynchronize();
+    free_scan_buf(&buf);
+}
+
+#endif /* SCAN_H */
+
