@@ -91,10 +91,9 @@ __device__ __forceinline__ uint8_t gpu_count_simple_moves(
         gpu_board_t *__restrict__ board, gpu_state_tables_t *__restrict__ state)
 {
     uint8_t count = 0;
-    uint8_t sq, target;
-    gpu_mv_flag_t flags;
     uint64_t mvmsk;
     uint64_t pinned = 0;
+    uint8_t sq;
 
     /* Mask for what squares sliding pieces are allowed to move onto. */
     uint64_t slider_allow_mask =

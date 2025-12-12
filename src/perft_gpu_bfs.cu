@@ -11,6 +11,7 @@ extern "C" {
 }
 #endif
 
+#include "perft_gpu.h"
 #include "cblib_gpu/gpu_types.cuh"
 #include "cblib_gpu/gpu_board.cuh"
 #include "cblib_gpu/gpu_move.cuh"
@@ -83,16 +84,6 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
     counts[tid] = gpu_count_moves(&board, &state);
 }
 
-__global__ void scan()
-{
-    /* TODO: Copy me from the other implementation. */
-}
-
-__global__ void reduce()
-{
-    /* TODO: Copy me from what you did for class. */
-}
-
 /**
  * @brief Generates a vector of moves on a vector of boards.
  * @param boards The vector of boards stored as a board_buffer_t.
@@ -157,7 +148,8 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
  */
 __global__ void gpu_make_moves(board_buffer_t in_boards,
         board_buffer_t out_boards, uint32_t *board_indices,
-        gpu_move_t *moves, uint32_t nmoves, gpu_color_t turn) {
+        gpu_move_t *moves, uint32_t nmoves, gpu_color_t turn)
+{
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     gpu_board_t board;
     gpu_move_t move;
@@ -176,7 +168,7 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
     board.bb.rooks = in_boards.rooks[board_idx];
     board.bb.kings = in_boards.kings[board_idx];
     board.bb.color = in_boards.color[board_idx];
-    board.state = boards.states[tid];
+    board.state = in_boards.state[tid];
     board.turn = turn;
 
     /* Prepare the occupancy as the union of all other bitmasks. */
@@ -185,7 +177,7 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
 
     /* Make the move. */
     move = moves[tid];
-    gpu_make(&ss, &board, mv);
+    gpu_make(&board, move);
 
     /* Write the resulting board to global memory. */
     out_boards.pawns[tid] = board.bb.pawns;
@@ -197,9 +189,10 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
     out_boards.state[tid] = board.state;
 }
 
-cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
-        uint64_t __restrict__ *counts, board_buffer_t __restrict__ *board_buf)
+cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
+        uint64_t *__restrict__ counts, board_buffer_t *__restrict__ board_buf)
 {
+#if 0
     /* Copy the board buffer to the kernel. */
 
     /* While we haven't bottomed out. */
@@ -229,10 +222,12 @@ cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
 
     /* Reduction of results? */
     reduce();
+#endif
+    return CB_EOK;
 }
 
-void pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
-        cb_board_t __restrict__ *board)
+void pbfs_board_buf_push(board_buffer_t *__restrict__ board_buf,
+        cb_board_t *__restrict__ board)
 {
     /* Preapre the board. */
     board_buf->color[board_buf->nboards] = board->bb.color[CB_WHITE];
@@ -248,14 +243,14 @@ void pbfs_board_buf_push(board_buffer_t __restrict__ *board_buf,
         board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
     board_buf->kings[board_buf->nboards] = 
         board->bb.piece[CB_WHITE][CB_PTYPE_KING] | board->bb.piece[CB_BLACK][CB_PTYPE_KING];
-    board_buf->pawns[board_buf->nboards] |= board->hist.data[board->hist.size-1];
+    board_buf->state[board_buf->nboards] = board->hist.data[board->hist.size-1].hist;
     
     /* Increment the board counter. */
     board_buf->nboards += 1;
 }
 
-cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
-        gpu_board_t __restrict__ *board, board_buffer_t __restrict__ *board_buf,
+cb_errno_t pbfs_host(cb_error_t *__restrict__ err, uint64_t *__restrict__ cnt,
+        cb_board_t *__restrict__ board, board_buffer_t *__restrict__ board_buf,
         int depth)
 {
     /* Variables for making moves on the host. */
@@ -263,28 +258,29 @@ cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
     cb_mvlst_t mvlst;
     cb_move_t mv;
     cb_state_tables_t state;
+    uint8_t i;
 
     /* Base case. */
     if (depth - GPU_SEARCH_DEPTH == 0) {
         pbfs_board_buf_push(board_buf, board);
 
         /* Launch the kernel if our buffer is full. */
-        if (board_buf.nboards == GPU_MAX_BOARDS_IN_BUF) {
+        if (board_buf->nboards == GPU_MAX_BOARDS_IN_BUF) {
             result = pbfs_kernel(err, cnt, board_buf);
-            board_buf->nboards == 0;
+            board_buf->nboards = 0;
         }
         return result;
     }
 
     /* Generate the moves. */
-    cb_gen_board_tables(state, board);
-    cb_gen_moves(&mvlst, board, state);
+    cb_gen_board_tables(&state, board);
+    cb_gen_moves(&mvlst, board, &state);
 
     /* Make moves and move down the tree. */
     for (i = 0; i < cb_mvlst_size(&mvlst); i++) {
         mv = cb_mvlst_at(&mvlst, i);
         cb_make(board, mv);
-        cnt += pbfs_host(board, state, depth - 1);
+        cnt += pbfs_host(err, cnt, board, board_buf, depth - 1);
         cb_unmake(board);
     }
 
@@ -294,16 +290,15 @@ cb_errno_t pbfs_host(cb_error_t __restrict__ *err, uint64_t __restrict__ *cnt,
 cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
 {
     /* Variables for printing the results. */
+    board_buffer_t h_bbuf;
     cb_error_t err;
     cb_errno_t result;
     uint64_t total = 0;
     char buf[6];
-    uint8_t mv_idx;
 
     /* Variables for making moves on the host. */
     cb_mvlst_t mvlst;
     cb_move_t mv;
-    uint64_t perft_results[CB_MAX_NUM_MOVES];
     cb_state_tables_t state;
     uint64_t cnt = 0;
     int i;
@@ -335,13 +330,13 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
         cb_make(board, mv);
 
         /* Search the subtree on the GPU. */
-        if ((result = pbfs_host(&err, &cnt, board, depth - 1)) != 0) {
+        if ((result = pbfs_host(&err, &cnt, board, &h_bbuf, depth - 1)) != 0) {
             fprintf(stderr, "pbfs: %s\n", err.desc);
             return result;
         }
 
         /* Need one more kernel for the remaining moves. */
-        if ((result = pbfs_kernel(&err, &cnt, board, depth - 1)) != 0) {
+        if ((result = pbfs_kernel(&err, &cnt, &h_bbuf)) != 0) {
             fprintf(stderr, "pbfs: %s\n", err.desc);
             return result;
         }
