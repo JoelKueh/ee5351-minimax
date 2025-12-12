@@ -27,6 +27,7 @@ uint64_t *gpu_bishop_atk_ptrs_h[64];
 uint64_t *gpu_rook_atk_ptrs_h[64];
 
 typedef struct {
+    gpu_history_t *state;
     uint64_t *color;
     uint64_t *pawns;
     uint64_t *knights;
@@ -70,6 +71,7 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
     board.bb.rooks = boards.rooks[tid];
     board.bb.kings = boards.kings[tid];
     board.bb.color = boards.color[tid];
+    board.state = boards.state[tid];
     board.turn = turn;
 
     /* Prepare the occupancy as the union of all other bitmasks. */
@@ -122,6 +124,7 @@ __global__ void gpu_gen_mv(board_buffer_t boards, uint32_t *write_indicies,
     board.bb.rooks = boards.rooks[tid];
     board.bb.kings = boards.kings[tid];
     board.bb.color = boards.color[tid];
+    board.state = boards.state[tid];
     board.turn = turn;
 
     /* Prepare the occupancy as the union of all other bitmasks. */
@@ -173,6 +176,7 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
     board.bb.rooks = in_boards.rooks[board_idx];
     board.bb.kings = in_boards.kings[board_idx];
     board.bb.color = in_boards.color[board_idx];
+    board.state = boards.states[tid];
     board.turn = turn;
 
     /* Prepare the occupancy as the union of all other bitmasks. */
@@ -190,6 +194,7 @@ __global__ void gpu_make_moves(board_buffer_t in_boards,
     out_boards.rooks[tid] = board.bb.rooks;
     out_boards.kings[tid] = board.bb.kings;
     out_boards.color[tid] = board.bb.color;
+    out_boards.state[tid] = board.state;
 }
 
 cb_errno_t pbfs_kernel(cb_error_t __restrict__ *err,
