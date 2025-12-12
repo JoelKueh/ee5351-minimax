@@ -144,7 +144,7 @@ void cblib_gpu_free()
  * @param counts The vector of counts.
  * @param turn The current turn.
  */
-__global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint8_t *counts,
+__global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint32_t *counts,
         gpu_color_t turn)
 {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -367,7 +367,7 @@ __global__ void pbfs_kernel_cdp(uint64_t __restrict__ *count,
 }
 
 cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
-        uint64_t *__restrict__ counts, board_buffer_t *__restrict__ board_buf)
+        uint64_t *__restrict__ count, board_buffer_t *__restrict__ board_buf, gpu_color_t in_turn)
 {
     /* Variables for the search. */
 	board_buffer_t boards = *board_buf;
@@ -377,7 +377,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     gpu_move_t *moves;
     uint32_t *move_indicies;
     uint32_t *source_board_indicies;
-    uint8_t *counts;
+    uint32_t *counts;
     uint32_t nmoves;
     gpu_color_t turn = in_turn;
 
@@ -406,8 +406,9 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         /* Scan the counts returned from the previous kernel. */
         blockDim = dim3(SCAN_BLOCK_DIM, 1, 1);
         gridDim = dim3(ceil((float)boards.nboards / SCAN_BLOCK_DIM), 1, 1);
-        scan<<<gridDim, blockDim, 0, s>>>((move_indicies + 1), counts, boards.nboards);
-        move_indicies[0] = 0;
+        //scan<<<gridDim, blockDim, 0, s>>>((move_indicies + 1), counts, boards.nboards);
+	launch_scan(move_indicies + 1, counts, boards.nboards);
+        cudaMemset(move_indicies, 0, sizeof(uint32_t));
 
         /* Synchronize with the stream to get the results of the scan. */
         cudaStreamSynchronize(s);
@@ -424,7 +425,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
                 moves, source_board_indicies, turn);
 
         /* Allocate memory for the boards. */
-        d_bbuf_alloc(p_new_boards, s);
+        cuda_bbuf_alloc(p_new_boards, s);
 
         /* Make the moves on the boards. */
         blockDim = dim3(CHESS_BLOCK_DIM, 1, 1);
@@ -438,7 +439,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         cudaFree(move_indicies);
         cudaFree(moves);
         cudaFree(source_board_indicies);
-        d_bbuf_free(p_boards, s);
+        cuda_bbuf_free(p_boards, s);
         p_boards = p_new_boards;
 
         /* We have just made a move, change the current turn. */
@@ -448,7 +449,8 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     /* Reduce the count vector. */
     dim3 blockDim(REDUCTION_BLOCK_DIM, 1, 1);
     dim3 gridDim(ceil((float)boards.nboards / REDUCTION_BLOCK_DIM), 1, 1);
-    reduce<<<gridDim, blockDim, 0, s>>>(count, counts);
+    //reduce<<<gridDim, blockDim, 0, s>>>(count, counts);
+    launch_reduction(count, counts, boards.nboards, s);
 
     /* Destroy the child stream. */
     cudaStreamDestroy(s);
