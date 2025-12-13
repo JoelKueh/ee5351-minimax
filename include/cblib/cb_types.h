@@ -31,10 +31,11 @@ typedef struct {
 /**
  * @breif Enumerates board piece and turn colors.
  */
-typedef enum {
+enum {
     CB_WHITE = 1,
     CB_BLACK = 0
-} cb_color_t;
+};
+typedef uint8_t cb_color_t;
 
 /**
  * @breif Enumerates piece ids.
@@ -42,7 +43,7 @@ typedef enum {
  * A piece ID contains both the piece type and the color.
  * Primarily for used when converting to a string representation.
  */
-typedef enum  {
+enum {
     CB_PID_EMPTY = 0b0000,
 
     CB_PID_WHITE_PAWN   = 0b0001,
@@ -58,7 +59,8 @@ typedef enum  {
     CB_PID_BLACK_ROOK   = 0b1100,
     CB_PID_BLACK_QUEEN  = 0b1101,
     CB_PID_BLACK_KING   = 0b1110
-} cb_pid_t;
+};
+typedef uint8_t cb_pid_t;
 
 /**
  * @breif Enumerates piece types.
@@ -66,7 +68,7 @@ typedef enum  {
  * A piece type contains only information about type, not about color.
  * This type can be used to index the bitboard array and is stored in the mailbox.
  */
-typedef enum {
+enum {
     CB_PTYPE_PAWN   = 0,
     CB_PTYPE_KNIGHT = 1,
     CB_PTYPE_BISHOP = 2,
@@ -74,7 +76,8 @@ typedef enum {
     CB_PTYPE_QUEEN  = 4,
     CB_PTYPE_KING   = 5,
     CB_PTYPE_EMPTY  = 6
-} cb_ptype_t;
+};
+typedef uint8_t cb_ptype_t;
 
 /**
  * @breif Simple type for a chess move.
