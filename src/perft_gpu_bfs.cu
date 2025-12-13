@@ -5,6 +5,7 @@ extern "C" {
 
 #include "cb_lib.h"
 #include "cb_move.h"
+#include "cb_dbg.h"
 #include "crosstime.h"
 
 #ifdef __cplusplus
@@ -444,10 +445,8 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
                 moves, source_board_indicies, turn);
 
         /* Break out of the loop after generating counts if we are done. */
-        if (i >= GPU_SEARCH_DEPTH - 2) {
-            turn = !turn;
+        if (i >= GPU_SEARCH_DEPTH - 2)
             break;
-        }
 
         /* Allocate memory for the boards. */
         new_boards.nboards = nmoves;
@@ -492,8 +491,6 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     cuda_bbuf_free(&new_boards, s);
     cudaFree(last_layer_counts);
     cudaStreamDestroy(s);
-
-    /* Destroy the child stream. */
 
     return CB_EOK;
 }
@@ -548,7 +545,7 @@ cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
     uint8_t i;
 
     /* Base case. */
-    if (depth < GPU_SEARCH_DEPTH) {
+    if (depth <= GPU_SEARCH_DEPTH) {
         bbuf_push(board_buf, board);
 
         /* Launch the kernel if our buffer is full. */
@@ -567,7 +564,7 @@ cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
     for (i = 0; i < cb_mvlst_size(&mvlst); i++) {
         mv = cb_mvlst_at(&mvlst, i);
         cb_make(board, mv);
-        cnt += pbfs_host(err, cnt, board, board_buf, depth - 1);
+        pbfs_host(err, cnt, board, board_buf, depth - 1);
         cb_unmake(board);
     }
 
@@ -598,8 +595,8 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     bbuf_alloc(&h_bbuf);
 
     /* Exit early if depth is less than 1. */
-    if (depth < GPU_SEARCH_DEPTH) {
-        printf("No perft with a depth below %d\n", GPU_SEARCH_DEPTH);
+    if (depth <= GPU_SEARCH_DEPTH) {
+        printf("No perft with depth <= %d\n", GPU_SEARCH_DEPTH);
         return CB_EOK;
     }
 
@@ -630,6 +627,7 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
             fprintf(stderr, "pbfs: %s\n", err.desc);
             return result;
         }
+        h_bbuf.nboards = 0;
 
         /* Update the total and write the subtree count to the console. */
         total += cnt;
