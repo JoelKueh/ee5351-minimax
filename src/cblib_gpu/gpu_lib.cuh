@@ -50,6 +50,12 @@ __device__ __forceinline__ void gpu_make(
     ptype = gpu_ptype_at_sq(board, from);
     cap_ptype = gpu_ptype_at_sq(board, to);
 
+    /* TODO: Remove me. */
+    //if (cap_ptype == GPU_PTYPE_KING) {
+    //    cap_ptype = GPU_PTYPE_KING;
+    //    printf("Error\n");
+    //}
+
     /* If a piece was captured, set it in the board state. */
     gpu_state_set_captured_piece(&new_state, cap_ptype);
     gpu_state_decay_castle_rights(&new_state, board->turn, to, from);

@@ -28,7 +28,7 @@ extern "C" {
 #define CHESS_BLOCK_SIZE 64
 
 /* Gpu search depth and launch parameters. */
-#define GPU_SEARCH_DEPTH 4
+#define GPU_SEARCH_DEPTH 5
 #define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
