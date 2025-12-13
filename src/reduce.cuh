@@ -71,7 +71,6 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
     n = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE));
 
     /* All remaining reductions are on the provided buffers. */
-    int i = 0;
     while (n > 1) {
         /* Launch the kernel to perform the reduction for the current size. */
         dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);

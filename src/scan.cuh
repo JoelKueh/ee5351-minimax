@@ -11,7 +11,7 @@
 typedef struct {
     int num_buffers;            /* Number of buffers in the structure. */
     int counts[7];              /* Counts of non-padded elements in buffer. */
-    unsigned int *buffers[7];   /* Array of buffer pointers. */
+    uint32_t *buffers[7];   /* Array of buffer pointers. */
 } scan_buffer_t;
 
 /**
@@ -102,8 +102,8 @@ __host__ void alloc_scan_buf(
     }
 
     /* Set the counts at the last level. */
-    buf->counts[i] = n;
-    cudaMalloc((void **)&(buf->buffers[i]), n * sizeof(uint32_t));
+    buf->counts[i] = 1;
+    cudaMalloc((void **)&(buf->buffers[i]), sizeof(uint32_t));
     buf->num_buffers = i + 1;
 }
 

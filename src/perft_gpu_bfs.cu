@@ -492,6 +492,10 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     /* Free up resources. */
     cuda_bbuf_free(&new_boards, s);
     cudaFree(last_layer_counts);
+    cudaFree(move_counts);
+    cudaFree(move_indicies);
+    cudaFree(moves);
+    cudaFree(source_board_indicies);
     cudaStreamDestroy(s);
 
     return CB_EOK;
