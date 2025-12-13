@@ -477,35 +477,25 @@ __device__ __forceinline__ uint64_t gpu_gen_threats(
 
     /* Generate knight threats. */
     uint64_t knights = GPU_BB_KNIGHTS(board->bb, !board->turn);
-    /* TODO: Fast, non-lookup knight move generation?
-     * https://www.chessprogramming.org/Knight_Pattern.
-     */
     while (knights) {
         threats |= gpu_read_knight_atk_msk(gpu_pop_rbit(&knights));
     }
 
     /* Generate bishop threats. */
     uint64_t bishops = GPU_BB_B_AND_Q(board->bb, !board->turn);
-    /* TODO: Fast, non-lookup bishop move generation (kogge-stone)?
-     * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
-     */
-    while (bishops) {
-        threats |= gpu_read_bishop_atk_msk(gpu_pop_rbit(&bishops), occ);
-    }
+    threats |= gpu_north_east_atk(bishops, occ);
+    threats |= gpu_north_west_atk(bishops, occ);
+    threats |= gpu_south_west_atk(bishops, occ);
+    threats |= gpu_south_east_atk(bishops, occ);
 
     /* Generate rook threats. */
     uint64_t rooks = GPU_BB_R_AND_Q(board->bb, !board->turn);
-    /* TODO: Fast, non-lookup rook move generation (kogge-stone)?
-     * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
-     */
-    while (rooks) {
-        threats |= gpu_read_rook_atk_msk(gpu_pop_rbit(&rooks), occ);
-    }
+    threats |= gpu_east_atk(rooks, occ);
+    threats |= gpu_north_atk(rooks, occ);
+    threats |= gpu_west_atk(rooks, occ);
+    threats |= gpu_south_atk(rooks, occ);
 
     /* Generate king threats. */
-    /* TODO: Fast, non-lookup king move generation.
-     * https://www.chessprogramming.org/Kogge-Stone_Algorithm.
-     */
     uint64_t kings = GPU_BB_KINGS(board->bb, !board->turn);
     threats |= gpu_read_king_atk_msk(gpu_peek_rbit(kings));
 
