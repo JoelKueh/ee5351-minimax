@@ -410,19 +410,17 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
 
     /* Perform the search to generate the top level board vector. */
     for (int i = 0; i < GPU_SEARCH_DEPTH; i++) {
-        /* Allocate memory for the counts. */
-        cudaMalloc((void**)&move_counts, boards.nboards * sizeof(uint32_t));
+        /* Allocate memory for the move counts that we will scan. This
+         * must be padded to support the scan that we will do later. */
+        int move_counts_size = ceil(boards.nboards / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
+        int move_indicies_size = ceil((boards.nboards + 1) / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
+        cudaMalloc((void**)&move_counts, move_counts_size * sizeof(uint32_t));
+        cudaMalloc((void**)&move_indicies, move_indicies_size * sizeof(uint32_t));
 
         /* Count the moves at the current level. */
         dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
         dim3 gridDim(ceil((float)boards.nboards / CHESS_BLOCK_DIM), 1, 1);
         gpu_mvcnt_kernel<<<gridDim, blockDim, 0, s>>>(boards, move_counts, turn);
-
-        /* Allocate memory for the move indicies that we will scan. This
-         * must be padded to support the scan that we will do later. */
-        int move_indicies_size =
-            ceil((boards.nboards + 1) / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
-        cudaMalloc((void**)&move_indicies, move_indicies_size * sizeof(uint32_t));
 
         /* Scan the counts returned from the previous kernel. */
         blockDim = dim3(SCAN_BLOCK_DIM, 1, 1);
@@ -508,6 +506,7 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
 
     board_buffer_t d_bbuf;
     uint64_t *d_count;
+    uint64_t result;
 
     /* Allocate device memory. */
     d_bbuf.nboards = bbuf->nboards;
@@ -527,7 +526,8 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     pbfs_kernel(err, d_count, &d_bbuf, turn);
 
     /* Copy the result back to the host. */
-    cudaMemcpyAsync(count, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(&result, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    *count = result;
 
     /* Free up the board vector and kernel results. */
     //cuda_bbuf_free(&d_bbuf, NULL); /* This is freed in the kernel. */

@@ -32,7 +32,7 @@ __global__ void reduce(uint64_t *out, uint64_t *in, uint32_t n)
 
 __global__ void reduce_to_u64(uint64_t *out, uint8_t *in, uint32_t n)
 {
-    __shared__ uint8_t shared[2 * REDUCTION_BLOCK_SIZE];
+    __shared__ uint64_t shared[2 * REDUCTION_BLOCK_SIZE];
     const int tx = threadIdx.x, bx = blockIdx.x;
     const int tid = 2 * blockDim.x * bx + tx;
 
@@ -59,7 +59,7 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
 {
     /* Allocate swap buffer for h_data on the GPU. */
     uint64_t *d_data[2];
-    size_t bufsize = ceil((float)n / REDUCTION_BLOCK_SIZE) * sizeof(uint64_t);
+    size_t bufsize = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE)) * sizeof(uint64_t);
     cudaMalloc((void **)&(d_data[0]), bufsize);
     cudaMalloc((void **)&(d_data[1]), bufsize);
 
