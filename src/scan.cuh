@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #define SCAN_BLOCK_SIZE 1024
-#define SCAN_TILE_SIZE (SCAN_BLOCK_SIZE >> 2)
+#define SCAN_TILE_SIZE (SCAN_BLOCK_SIZE << 1)
 
 /* Struct to hold the intermediate results of a scan. */
 typedef struct {
@@ -133,6 +133,7 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
         gridDim = dim3(buf.counts[i], 1, 1);
         scan<<<gridDim, blockDim>>>(buf.buffers[i-1],
                 buf.buffers[i-1], buf.buffers[i]);
+        /* TODO: Do I need this synchronization. */
         cudaDeviceSynchronize();
     }
 
@@ -149,6 +150,7 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
     distribute<<<gridDim, blockDim>>>(out, buf.buffers[0]);
 
     /* Synchronize and free memory. */
+    /* TODO: Do I need this synchronization. */
     cudaDeviceSynchronize();
     free_scan_buf(&buf);
 }

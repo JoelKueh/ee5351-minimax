@@ -29,7 +29,7 @@ extern "C" {
 #define SCAN_BLOCK_DIM 1024
 
 /* Gpu search depth and launch parameters. */
-#define GPU_SEARCH_DEPTH 5
+#define GPU_SEARCH_DEPTH 2
 #define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
@@ -55,6 +55,7 @@ __host__ __device__ void bbuf_alloc(board_buffer_t *__restrict__ bbuf)
     bbuf->bishops = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
     bbuf->rooks = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
     bbuf->kings = (uint64_t*)malloc(GPU_MAX_BOARDS_IN_BUF * sizeof(uint64_t));
+    bbuf->nboards = 0;
 }
 
 __host__ __device__ void bbuf_free(board_buffer_t *__restrict__ bbuf)
@@ -78,6 +79,9 @@ __host__ __device__ void bbuf_read(board_buffer_t *__restrict__ board_buf,
     board->bb.kings = board_buf->kings[idx];
     board->bb.color = board_buf->color[idx];
     board->state = board_buf->state[idx];
+
+    board->bb.occ = board->bb.pawns | board->bb.knights | board->bb.bishops
+        | board->bb.rooks | board->bb.kings;
 }
 
 __host__ __device__ void bbuf_write(board_buffer_t *__restrict__ board_buf,
@@ -109,7 +113,7 @@ __host__ void bbuf_push(board_buffer_t *__restrict__ board_buf,
         board->bb.piece[CB_WHITE][CB_PTYPE_QUEEN] | board->bb.piece[CB_BLACK][CB_PTYPE_QUEEN];
     board_buf->kings[board_buf->nboards] = 
         board->bb.piece[CB_WHITE][CB_PTYPE_KING] | board->bb.piece[CB_BLACK][CB_PTYPE_KING];
-    board_buf->state[board_buf->nboards] = board->hist.data[board->hist.size-1].hist;
+    board_buf->state[board_buf->nboards] = board->hist.data[board->hist.count-1].hist;
     
     /* Increment the board counter. */
     board_buf->nboards += 1;
@@ -177,16 +181,12 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint32_t *counts,
     gpu_state_tables_t state;
 
     /* Early return for out-of-range threads. */
-    if (tid > boards.nboards)
+    if (tid >= boards.nboards)
         return;
 
     /* Load the board from global memory. */
     bbuf_read(&boards, &board, tid);
     board.turn = turn;
-
-    /* Prepare the occupancy as the union of all other bitmasks. */
-    board.bb.occ = board.bb.pawns || board.bb.knights || board.bb.bishops || 
-        board.bb.rooks || board.bb.kings;
     
     /* Count the moves at the given state. */
     gpu_gen_board_tables(&board, &state);
@@ -203,7 +203,7 @@ __global__ void gpu_mvcnt_kernel(board_buffer_t boards, uint32_t *counts,
  * @param turn The current turn.
  */
 __global__ void gpu_mvgen_kernel(board_buffer_t boards, uint32_t *write_indicies,
-        gpu_move_t *moves, uint32_t *move_source_board_mapping,
+        gpu_move_t *moves, uint32_t *source_board_mapping,
         gpu_color_t turn)
 {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -214,22 +214,19 @@ __global__ void gpu_mvgen_kernel(board_buffer_t boards, uint32_t *write_indicies
     uint8_t i;
 
     /* Early return for out-of-range threads. */
-    if (tid > boards.nboards)
+    if (tid >= boards.nboards)
         return;
 
     /* Load the board from global memory. */
     bbuf_read(&boards, &board, tid);
     board.turn = turn;
 
-    /* Prepare the occupancy as the union of all other bitmasks. */
-    board.bb.occ = board.bb.pawns || board.bb.knights || board.bb.bishops || 
-        board.bb.rooks || board.bb.kings;
-
     /* Load the output index from global memory. */
     write_idx = write_indicies[tid];
 
     /* Generate all of the moves. */
     ss.moves = moves + write_idx;
+    ss.count = 0;
     gpu_gen_board_tables(&board, &state);
     gpu_gen_moves(&ss, &board, &state);
 
@@ -237,7 +234,7 @@ __global__ void gpu_mvgen_kernel(board_buffer_t boards, uint32_t *write_indicies
      * Theoritically this removes the need for the inverval expand kenrnel.
      */
     for (i = 0; i < ss.count; i++)
-        move_source_board_mapping[write_idx] = tid;
+        source_board_mapping[write_idx+i] = tid;
 }
 
 /**
@@ -250,7 +247,7 @@ __global__ void gpu_mvgen_kernel(board_buffer_t boards, uint32_t *write_indicies
  * @param turn The current turn.
  */
 __global__ void gpu_mvmake_kernel(board_buffer_t in_boards,
-        board_buffer_t out_boards, uint32_t *board_indices,
+        board_buffer_t out_boards, uint32_t *source_board_indicies,
         gpu_move_t *moves, uint32_t nmoves, gpu_color_t turn)
 {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -258,19 +255,15 @@ __global__ void gpu_mvmake_kernel(board_buffer_t in_boards,
     gpu_move_t move;
 
     /* Early return for out-of-range threads. */
-    if (tid > nmoves)
+    if (tid >= nmoves)
         return;
 
     /* Load the board index from global memory. */
-    uint32_t board_idx = board_indices[tid];
+    uint32_t board_idx = source_board_indicies[tid];
 
     /* Load the board from global memory. */
-    bbuf_read(&in_boards, &board, tid);
+    bbuf_read(&in_boards, &board, board_idx);
     board.turn = turn;
-
-    /* Prepare the occupancy as the union of all other bitmasks. */
-    board.bb.occ = board.bb.pawns || board.bb.knights || board.bb.bishops || 
-        board.bb.rooks || board.bb.kings;
 
     /* Make the move. */
     move = moves[tid];
@@ -281,7 +274,7 @@ __global__ void gpu_mvmake_kernel(board_buffer_t in_boards,
 }
 
 __global__ void gpu_mvmake_and_count_kernel(board_buffer_t boards,
-        uint32_t *board_indices, gpu_move_t *moves, uint8_t *counts,
+        uint32_t *source_board_indices, gpu_move_t *moves, uint8_t *counts,
         uint32_t nmoves, gpu_color_t turn)
 {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -290,19 +283,15 @@ __global__ void gpu_mvmake_and_count_kernel(board_buffer_t boards,
     gpu_move_t move;
 
     /* Early return for out-of-range threads. */
-    if (tid > nmoves)
+    if (tid >= nmoves)
         return;
 
     /* Load the board index from global memory. */
-    uint32_t board_idx = board_indices[tid];
+    uint32_t board_idx = source_board_indices[tid];
 
     /* Load the board from global memory. */
     bbuf_read(&boards, &board, tid);
     board.turn = turn;
-
-    /* Prepare the occupancy as the union of all other bitmasks. */
-    board.bb.occ = board.bb.pawns || board.bb.knights || board.bb.bishops || 
-        board.bb.rooks || board.bb.kings;
 
     /* Make the move. */
     move = moves[tid];
@@ -401,13 +390,12 @@ __global__ void pbfs_kernel_cdp(uint64_t *__restrict__ count,
 }
 
 cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
-        uint64_t *__restrict__ count, board_buffer_t *__restrict__ board_buf, gpu_color_t in_turn)
+        uint64_t *__restrict__ count, board_buffer_t *__restrict__ board_buf,
+        gpu_color_t in_turn)
 {
     /* Variables for the search. */
 	board_buffer_t boards = *board_buf;
     board_buffer_t new_boards;
-    board_buffer_t *p_new_boards = &new_boards;
-    board_buffer_t *p_boards = &boards;
     gpu_move_t *moves;
     uint32_t *move_counts;
     uint32_t *move_indicies;
@@ -430,20 +418,24 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         dim3 gridDim(ceil((float)boards.nboards / CHESS_BLOCK_DIM), 1, 1);
         gpu_mvcnt_kernel<<<gridDim, blockDim, 0, s>>>(boards, move_counts, turn);
 
-        /* Allocate memory for the move indicies that we will scan. */
-        cudaMalloc((void**)&move_indicies, (boards.nboards + 1) * sizeof(uint32_t));
+        /* Allocate memory for the move indicies that we will scan. This
+         * must be padded to support the scan that we will do later. */
+        int move_indicies_size =
+            ceil((boards.nboards + 1) / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
+        cudaMalloc((void**)&move_indicies, move_indicies_size * sizeof(uint32_t));
 
         /* Scan the counts returned from the previous kernel. */
         blockDim = dim3(SCAN_BLOCK_DIM, 1, 1);
         gridDim = dim3(ceil((float)boards.nboards / SCAN_BLOCK_DIM), 1, 1);
-	    launch_scan(move_indicies + 1, move_counts, boards.nboards);
+        launch_scan(move_indicies + 1, move_counts, boards.nboards);
         cudaMemset(move_indicies, 0, sizeof(uint32_t));
 
         /* Synchronize with the stream to get the results of the scan. */
         cudaStreamSynchronize(s);
 
         /* Allocate memory for the moves. */
-        nmoves = move_indicies[boards.nboards];
+        cudaMemcpy(&nmoves, &(move_indicies[boards.nboards]),
+                sizeof(uint32_t), cudaMemcpyDeviceToHost);
         cudaMalloc((void**)&moves, nmoves * sizeof(gpu_move_t));
         cudaMalloc((void**)&source_board_indicies, nmoves * sizeof(uint32_t));
 
@@ -454,11 +446,12 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
                 moves, source_board_indicies, turn);
 
         /* Break out of the loop after generating counts if we are done. */
-        if (i == i - GPU_SEARCH_DEPTH)
+        if (i >= GPU_SEARCH_DEPTH - 1)
             break;
 
         /* Allocate memory for the boards. */
-        cuda_bbuf_alloc(p_new_boards, s);
+        new_boards.nboards = nmoves;
+        cuda_bbuf_alloc(&new_boards, s);
 
         /* Make the moves on the boards. */
         blockDim = dim3(CHESS_BLOCK_DIM, 1, 1);
@@ -472,14 +465,15 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         cudaFree(move_indicies);
         cudaFree(moves);
         cudaFree(source_board_indicies);
-        cuda_bbuf_free(p_boards, s);
-        p_boards = p_new_boards;
+        cuda_bbuf_free(&boards, s);
+        boards = new_boards;
 
         /* We have just made a move, change the current turn. */
         turn = !turn;
     }
 
     /* Count the moves with the given position and move vectors. */
+    cudaStreamSynchronize(s);
     dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
     dim3 gridDim(ceil((float)boards.nboards / CHESS_BLOCK_DIM), 1, 1);
     gpu_mvmake_and_count_kernel<<<gridDim, blockDim, 0, s>>>(boards,
@@ -507,16 +501,20 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
 
     /* Allocate device memory. */
     d_bbuf.nboards = bbuf->nboards;
-    cuda_bbuf_free(&d_bbuf, NULL);
+    cuda_bbuf_alloc(&d_bbuf, NULL);
     cudaMallocAsync((void**)&d_count, sizeof(uint64_t), NULL);
 
     /* Copy the board buffer to device memory. */
     cuda_bbuf_memcpy(&d_bbuf, bbuf, NULL);
+    cudaDeviceSynchronize();
 
     /* Launch the cuda dynamic parallelism kernel on the boards. */
+#if 0
     dim3 blockDim(1, 1, 1);
     dim3 gridDim(1, 1, 1);
-    pbfs_kernel_cdp<<<gridDim, blockDim>>>(d_count, d_bbuf, turn);
+    pbfs_kernel_cdp<<<gridDim, blockDim>>>(err, d_count, d_bbuf, turn);
+#endif
+    pbfs_kernel(err, d_count, &d_bbuf, turn);
 
     /* Copy the result back to the host. */
     cudaMemcpyAsync(count, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
@@ -524,6 +522,8 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     /* Free up the board vector and kernel results. */
     cuda_bbuf_free(&d_bbuf, NULL);
     cudaFree(d_count);
+
+    return CB_EOK;
 }
 
 
@@ -543,7 +543,7 @@ cb_errno_t pbfs_host(cb_error_t *err, uint64_t *cnt, cb_board_t *board,
 
         /* Launch the kernel if our buffer is full. */
         if (board_buf->nboards == GPU_MAX_BOARDS_IN_BUF) {
-            result = pbfs_kernel(err, cnt, board_buf, board->turn);
+            result = pbfs_kernel_launch(err, cnt, board_buf, board->turn);
             board_buf->nboards = 0;
         }
         return result;
@@ -616,7 +616,7 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
         }
 
         /* Need one more kernel for the remaining moves. */
-        if ((result = pbfs_kernel(&err, &cnt, &h_bbuf, board->turn)) != 0) {
+        if ((result = pbfs_kernel_launch(&err, &cnt, &h_bbuf, board->turn)) != 0) {
             fprintf(stderr, "pbfs: %s\n", err.desc);
             return result;
         }

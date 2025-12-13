@@ -46,8 +46,10 @@ __device__ __forceinline__ void gpu_write_piece(
         uint8_t ptype, uint8_t pcolor)
 {
     if (ptype == GPU_PTYPE_EMPTY) {
-        gpu_print_bitboard(board);
-        printf("square: %d, ptype: %d, pcolor: %d", sq, ptype, pcolor);
+        /* TODO: Remove me. */
+        //gpu_print_bitboard(board);
+        printf("tx: %d, square: %d, ptype: %d, pcolor: %d\n",
+                threadIdx.x, sq, ptype, pcolor);
     }
 
     /* Set the piece bitboards. */
