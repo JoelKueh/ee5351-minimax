@@ -2,9 +2,6 @@
 #ifndef GPU_GEN_H
 #define GPU_GEN_H
 
-/* TODO: Remove me. */
-#include <inttypes.h>
-
 #include <string.h>
 
 #include "gpu_tables.cuh"

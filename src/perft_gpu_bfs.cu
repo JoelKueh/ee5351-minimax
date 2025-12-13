@@ -25,12 +25,10 @@ extern "C" {
 #include "cblib_gpu/gpu_count_moves.cuh"
 
 /* Block dim parameters. */
-#define CHESS_BLOCK_DIM 64
-#define REDUCTION_BLOCK_DIM 1024
-#define SCAN_BLOCK_DIM 1024
+#define CHESS_BLOCK_SIZE 64
 
 /* Gpu search depth and launch parameters. */
-#define GPU_SEARCH_DEPTH 3
+#define GPU_SEARCH_DEPTH 4
 #define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
@@ -231,11 +229,19 @@ __global__ void gpu_mvgen_kernel(board_buffer_t boards, uint32_t *write_indicies
     gpu_gen_board_tables(&board, &state);
     gpu_gen_moves(&ss, &board, &state);
 
+    /* TODO: Remove me. Check missmatch between predicted and actual counts. */
+    //if (write_idx + ss.count != write_indicies[tid+1]) {
+    //    uint32_t predicted = write_indicies[tid+1] - write_idx;
+    //    uint32_t acutal = ss.count;
+    //    printf("MISSMATCH: predict: %d, actual: %d\n", predicted, acutal);
+    //}
+
     /* Write the thread ID to the output indicies.
      * Theoritically this removes the need for the inverval expand kenrnel.
      */
-    for (i = 0; i < ss.count; i++)
+    for (i = 0; i < ss.count; i++) {
         source_board_mapping[write_idx+i] = tid;
+    }
 }
 
 /**
@@ -327,8 +333,8 @@ __global__ void pbfs_kernel_cdp(uint64_t *__restrict__ count,
         cudaMalloc((void**)&counts, boards->nboards * sizeof(uint32_t));
 
         /* Count the moves at the current level. */
-        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
-        dim3 gridDim(ceil((float)boards->nboards / CHESS_BLOCK_DIM), 1, 1);
+        dim3 blockDim(CHESS_BLOCK_SIZE, 1, 1);
+        dim3 gridDim(ceil((float)boards->nboards / CHESS_BLOCK_SIZE), 1, 1);
         gpu_mvcnt_kernel<<<gridDim, blockDim, s>>>(boards, counts, turn);
 
         /* Break out of the loop after generating counts if we are done. */
@@ -339,8 +345,8 @@ __global__ void pbfs_kernel_cdp(uint64_t *__restrict__ count,
         cudaMalloc((void**)&move_indicies, (boards->nboards + 1) * sizeof(uint32_t));
 
         /* Scan the counts returned from the previous kernel. */
-        dim3 blockDim(SCAN_BLOCK_DIM, 1, 1);
-        dim3 gridDim(ceil((float)boards->nboards / SCAN_BLOCK_DIM), 1, 1);
+        dim3 blockDim(SCAN_BLOCK_SIZE, 1, 1);
+        dim3 gridDim(ceil((float)boards->nboards / SCAN_BLOCK_SIZE), 1, 1);
         scan<<<gridDim, blockDim, s>>>((move_indicies + 1), counts, boards->nboards);
         move_indicies[0] = 0;
 
@@ -353,8 +359,8 @@ __global__ void pbfs_kernel_cdp(uint64_t *__restrict__ count,
         cudaMalloc((void**)&source_board_indicies, nmoves * sizeof(uint32_t));
 
         /* Generate the moves. */
-        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
-        dim3 gridDim(ceil((float) / CHESS_BLOCK_DIM), 1, 1);
+        dim3 blockDim(CHESS_BLOCK_SIZE, 1, 1);
+        dim3 gridDim(ceil((float) / CHESS_BLOCK_SIZE), 1, 1);
         gpu_mvgen_kernel<<<gridDim, blockDim, s>>>(boards, write_indicies,
                 moves, source_board_indicies, turn);
 
@@ -362,8 +368,8 @@ __global__ void pbfs_kernel_cdp(uint64_t *__restrict__ count,
         bbuf_alloc(p_new_boards, s);
 
         /* Make the moves on the boards. */
-        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
-        dim3 gridDim(ceil((float)boards->nboards / CHESS_BLOCK_DIM), 1, 1);
+        dim3 blockDim(CHESS_BLOCK_SIZE, 1, 1);
+        dim3 gridDim(ceil((float)boards->nboards / CHESS_BLOCK_SIZE), 1, 1);
         gpu_make_kernel<<<gridDim, blockDim, s>>>(p_boards, p_new_boards,
                 source_board_indicies, moves, turn);
 
@@ -381,8 +387,8 @@ __global__ void pbfs_kernel_cdp(uint64_t *__restrict__ count,
     }
 
     /* Reduce the count vector. */
-    dim3 blockDim(REDUCTION_BLOCK_DIM, 1, 1);
-    dim3 gridDim(ceil((float)boards->nboards / REDUCTION_BLOCK_DIM), 1, 1);
+    dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
+    dim3 gridDim(ceil((float)boards->nboards / REDUCTION_BLOCK_SIZE), 1, 1);
     reduce<<<gridDim, blockDim, s>>>(count, counts);
 
     /* Destroy the child stream. */
@@ -413,20 +419,18 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     for (int i = 0; i < GPU_SEARCH_DEPTH; i++) {
         /* Allocate memory for the move counts that we will scan. This
          * must be padded to support the scan that we will do later. */
-        int move_counts_size = ceil(boards.nboards / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
-        int move_indicies_size = ceil((boards.nboards + 1) / (float)SCAN_TILE_SIZE) * SCAN_TILE_SIZE;
+        int move_counts_size = boards.nboards;
+        int move_indicies_size = boards.nboards + 1;
         cudaMalloc((void**)&move_counts, move_counts_size * sizeof(uint32_t));
         cudaMalloc((void**)&move_indicies, move_indicies_size * sizeof(uint32_t));
 
         /* Count the moves at the current level. */
-        dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
-        dim3 gridDim(ceil((float)boards.nboards / CHESS_BLOCK_DIM), 1, 1);
+        dim3 blockDim(CHESS_BLOCK_SIZE, 1, 1);
+        dim3 gridDim(ceil((float)boards.nboards / CHESS_BLOCK_SIZE), 1, 1);
         gpu_mvcnt_kernel<<<gridDim, blockDim, 0, s>>>(boards, move_counts, turn);
 
         /* Scan the counts returned from the previous kernel. */
-        blockDim = dim3(SCAN_BLOCK_DIM, 1, 1);
-        gridDim = dim3(ceil((float)boards.nboards / SCAN_BLOCK_DIM), 1, 1);
-        launch_scan(move_indicies + 1, move_counts, boards.nboards);
+        launch_scan(move_indicies + 1, move_counts, boards.nboards, s);
         cudaMemset(move_indicies, 0, sizeof(uint32_t));
 
         /* Synchronize with the stream to get the results of the scan. */
@@ -439,8 +443,8 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         cudaMalloc((void**)&source_board_indicies, nmoves * sizeof(uint32_t));
 
         /* Generate the moves. */
-        blockDim = dim3(CHESS_BLOCK_DIM, 1, 1);
-        gridDim = dim3(ceil((float) boards.nboards / CHESS_BLOCK_DIM), 1, 1);
+        blockDim = dim3(CHESS_BLOCK_SIZE, 1, 1);
+        gridDim = dim3(ceil((float) boards.nboards / CHESS_BLOCK_SIZE), 1, 1);
         gpu_mvgen_kernel<<<gridDim, blockDim, 0, s>>>(boards, move_indicies,
                 moves, source_board_indicies, turn);
 
@@ -453,8 +457,8 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         cuda_bbuf_alloc(&new_boards, s);
 
         /* Make the moves on the boards. */
-        blockDim = dim3(CHESS_BLOCK_DIM, 1, 1);
-        gridDim = dim3(ceil((float)nmoves / CHESS_BLOCK_DIM), 1, 1);
+        blockDim = dim3(CHESS_BLOCK_SIZE, 1, 1);
+        gridDim = dim3(ceil((float)nmoves / CHESS_BLOCK_SIZE), 1, 1);
         gpu_mvmake_kernel<<<gridDim, blockDim, 0, s>>>(boards, new_boards,
                 source_board_indicies, moves, nmoves, turn);
 
@@ -476,14 +480,12 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
 
     /* Count the moves with the given position and move vectors. */
     cudaMalloc((void**)&last_layer_counts, nmoves * sizeof(uint8_t));
-    dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
-    dim3 gridDim(ceil((float)nmoves / CHESS_BLOCK_DIM), 1, 1);
+    dim3 blockDim(CHESS_BLOCK_SIZE, 1, 1);
+    dim3 gridDim(ceil((float)nmoves / CHESS_BLOCK_SIZE), 1, 1);
     gpu_mvmake_and_count_kernel<<<gridDim, blockDim, 0, s>>>(boards,
             source_board_indicies, moves, last_layer_counts, nmoves, turn);
 
     /* Reduce the count vector. */
-    blockDim = dim3(REDUCTION_BLOCK_DIM, 1, 1);
-    gridDim = dim3(ceil((float)boards.nboards / REDUCTION_BLOCK_DIM), 1, 1);
     launch_reduction(count, last_layer_counts, nmoves, s);
     cudaStreamSynchronize(s);
 
@@ -504,9 +506,6 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     board_buffer_t d_bbuf;
     uint64_t *d_count;
     uint64_t result;
-
-    /* TODO: Remove me. */
-    printf("nboards: %d\n", bbuf->nboards);
 
     /* Allocate device memory. */
     d_bbuf.nboards = bbuf->nboards;

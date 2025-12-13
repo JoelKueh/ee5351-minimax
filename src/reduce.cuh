@@ -2,8 +2,6 @@
 #ifndef REDUCE_H
 #define REDUCE_H
 
-/* TODO: Remove me. */
-#include <iostream>
 #include <cstdint>
 
 #define REDUCTION_BLOCK_SIZE 1024
@@ -59,9 +57,6 @@ __global__ void reduce_to_u64(uint64_t *out, uint8_t *in, uint32_t n)
 __host__ void launch_reduction(uint64_t *result, uint8_t *data,
         uint32_t n, cudaStream_t s)
 {
-    /* TODO: Remove me. */
-    std::cout << "n: " << n << "\n";
-    
     /* Allocate swap buffer for h_data on the GPU. */
     uint64_t *in_data;
     uint64_t *out_data;

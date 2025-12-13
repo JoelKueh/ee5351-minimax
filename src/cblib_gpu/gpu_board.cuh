@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <inttypes.h>
 
 #include "gpu_types.cuh"
 #include "gpu_dbg.cuh"
@@ -45,13 +46,6 @@ __device__ __forceinline__ void gpu_write_piece(
         gpu_board_t *__restrict__ board, uint8_t sq,
         uint8_t ptype, uint8_t pcolor)
 {
-    if (ptype == GPU_PTYPE_EMPTY) {
-        /* TODO: Remove me. */
-        //gpu_print_bitboard(board);
-        printf("tx: %d, square: %d, ptype: %d, pcolor: %d\n",
-                threadIdx.x, sq, ptype, pcolor);
-    }
-
     /* Set the piece bitboards. */
     board->bb.pawns |= ptype == GPU_PTYPE_PAWN ? UINT64_C(1) << sq : 0;
     board->bb.knights |= ptype == GPU_PTYPE_KNIGHT ? UINT64_C(1) << sq : 0;
