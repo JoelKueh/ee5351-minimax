@@ -28,7 +28,7 @@ extern "C" {
 #define CHESS_BLOCK_SIZE 64
 
 /* Gpu search depth and launch parameters. */
-#define GPU_SEARCH_DEPTH 5
+#define GPU_SEARCH_DEPTH 4
 #define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
@@ -630,7 +630,8 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
         }
 
         /* Need one more kernel for the remaining moves. */
-        if ((result = pbfs_kernel_launch(&err, &cnt, &h_bbuf, board->turn)) != 0) {
+        gpu_color_t turn = board->turn ^ (~(depth - GPU_SEARCH_DEPTH) & 1);
+        if ((result = pbfs_kernel_launch(&err, &cnt, &h_bbuf, turn)) != 0) {
             fprintf(stderr, "pbfs: %s\n", err.desc);
             return result;
         }

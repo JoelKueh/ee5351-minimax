@@ -6,3 +6,11 @@
   - This does raise the question of why I start capping out.
 - TODO: Fix the scan, you screwed it up pretty bad
 - knight takes king on 8th move.
+
+moves to look at:
+- d2d3
+- e2e3
+- d2d4
+- e2e4
+- g2g3 -> Notably not g2g4
+- a2a3 -> Notably not a2a4
