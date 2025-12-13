@@ -530,6 +530,7 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
 
     /* Copy the result back to the host. */
     cudaMemcpyAsync(&result, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
     *count += result;
 
     /* Free up the board vector and kernel results. */
