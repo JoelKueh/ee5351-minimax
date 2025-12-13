@@ -2,6 +2,8 @@
 #ifndef REDUCE_H
 #define REDUCE_H
 
+/* TODO: Remove me. */
+#include <iostream>
 #include <cstdint>
 
 #define REDUCTION_BLOCK_SIZE 1024
@@ -57,16 +59,20 @@ __global__ void reduce_to_u64(uint64_t *out, uint8_t *in, uint32_t n)
 __host__ void launch_reduction(uint64_t *result, uint8_t *data,
         uint32_t n, cudaStream_t s)
 {
+    /* TODO: Remove me. */
+    std::cout << "n: " << n << "\n";
+    
     /* Allocate swap buffer for h_data on the GPU. */
-    uint64_t *d_data[2];
+    uint64_t *in_data;
+    uint64_t *out_data;
     size_t bufsize = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE)) * sizeof(uint64_t);
-    cudaMalloc((void **)&(d_data[0]), bufsize);
-    cudaMalloc((void **)&(d_data[1]), bufsize);
+    cudaMalloc((void **)&in_data, bufsize);
+    cudaMalloc((void **)&out_data, bufsize);
 
     /* First reduction is from uint8_t to uint64_t. */
     dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
-    dim3 gridDim(ceil((float)n / REDUCTION_BLOCK_SIZE), 1, 1);
-    reduce_to_u64<<<gridDim, blockDim, 0, s>>>(d_data[0], data, n);
+    dim3 gridDim(ceil((float)n / (2 * REDUCTION_BLOCK_SIZE)), 1, 1);
+    reduce_to_u64<<<gridDim, blockDim, 0, s>>>(in_data, data, n);
     n = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE));
 
     /* All remaining reductions are on the provided buffers. */
@@ -74,20 +80,22 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
     while (n > 1) {
         /* Launch the kernel to perform the reduction for the current size. */
         dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
-        dim3 gridDim(ceil((float)n / REDUCTION_BLOCK_SIZE), 1, 1);
-        reduce<<<gridDim, blockDim>>>(d_data[i], d_data[i ^ 1], n);
+        dim3 gridDim(ceil((float)n / (2 * REDUCTION_BLOCK_SIZE)), 1, 1);
+        reduce<<<gridDim, blockDim, 0, s>>>(out_data, in_data, n);
 
         /* One reduction cuts size of input by twice BLOCK_SIZE. */
         n = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE));
 
         /* Swap the output and input buffers. */
-        i ^= 1;
+        uint64_t *tmp = out_data;
+        out_data = in_data;
+        in_data = tmp;
     }
 
     /* Copy the reduced sum back to the CPU and free gpu memory. */
-    cudaMemcpy(result, d_data[i], 1 * sizeof(int), cudaMemcpyDeviceToDevice);
-    cudaFree(d_data[0]);
-    cudaFree(d_data[1]);
+    cudaMemcpy(result, in_data, 1 * sizeof(int), cudaMemcpyDeviceToDevice);
+    cudaFree(in_data);
+    cudaFree(out_data);
 }
 
 #endif /* REDUCE_H */

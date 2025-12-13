@@ -454,7 +454,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
 
         /* Make the moves on the boards. */
         blockDim = dim3(CHESS_BLOCK_DIM, 1, 1);
-        gridDim = dim3(ceil((float)boards.nboards / CHESS_BLOCK_DIM), 1, 1);
+        gridDim = dim3(ceil((float)nmoves / CHESS_BLOCK_DIM), 1, 1);
         gpu_mvmake_kernel<<<gridDim, blockDim, 0, s>>>(boards, new_boards,
                 source_board_indicies, moves, nmoves, turn);
 
@@ -505,6 +505,9 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     uint64_t *d_count;
     uint64_t result;
 
+    /* TODO: Remove me. */
+    printf("nboards: %d\n", bbuf->nboards);
+
     /* Allocate device memory. */
     d_bbuf.nboards = bbuf->nboards;
     cuda_bbuf_alloc(&d_bbuf, NULL);
@@ -524,7 +527,7 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
 
     /* Copy the result back to the host. */
     cudaMemcpyAsync(&result, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
-    *count = result;
+    *count += result;
 
     /* Free up the board vector and kernel results. */
     //cuda_bbuf_free(&d_bbuf, NULL); /* This is freed in the kernel. */
@@ -613,6 +616,7 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     cb_gen_moves(&mvlst, board, &state);
     for (i = 0; i < cb_mvlst_size(&mvlst); i++) {
         /* Make the move for the current position. */
+        cnt = 0;
         mv = cb_mvlst_at(&mvlst, i);
         cb_make(board, mv);
 
