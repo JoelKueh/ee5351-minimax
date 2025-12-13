@@ -29,7 +29,7 @@ extern "C" {
 #define SCAN_BLOCK_DIM 1024
 
 /* Gpu search depth and launch parameters. */
-#define GPU_SEARCH_DEPTH 2
+#define GPU_SEARCH_DEPTH 3
 #define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
@@ -290,7 +290,7 @@ __global__ void gpu_mvmake_and_count_kernel(board_buffer_t boards,
     uint32_t board_idx = source_board_indices[tid];
 
     /* Load the board from global memory. */
-    bbuf_read(&boards, &board, tid);
+    bbuf_read(&boards, &board, board_idx);
     board.turn = turn;
 
     /* Make the move. */
@@ -446,8 +446,10 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
                 moves, source_board_indicies, turn);
 
         /* Break out of the loop after generating counts if we are done. */
-        if (i >= GPU_SEARCH_DEPTH - 1)
+        if (i >= GPU_SEARCH_DEPTH - 2) {
+            turn = !turn;
             break;
+        }
 
         /* Allocate memory for the boards. */
         new_boards.nboards = nmoves;
@@ -471,21 +473,29 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         /* We have just made a move, change the current turn. */
         turn = !turn;
     }
+    
+    /* Synchronize with the stream. */
+    cudaStreamSynchronize(s);
 
     /* Count the moves with the given position and move vectors. */
-    cudaStreamSynchronize(s);
+    cudaMalloc((void**)&last_layer_counts, nmoves * sizeof(uint8_t));
     dim3 blockDim(CHESS_BLOCK_DIM, 1, 1);
-    dim3 gridDim(ceil((float)boards.nboards / CHESS_BLOCK_DIM), 1, 1);
+    dim3 gridDim(ceil((float)nmoves / CHESS_BLOCK_DIM), 1, 1);
     gpu_mvmake_and_count_kernel<<<gridDim, blockDim, 0, s>>>(boards,
             source_board_indicies, moves, last_layer_counts, nmoves, turn);
 
     /* Reduce the count vector. */
     blockDim = dim3(REDUCTION_BLOCK_DIM, 1, 1);
     gridDim = dim3(ceil((float)boards.nboards / REDUCTION_BLOCK_DIM), 1, 1);
-    launch_reduction(count, last_layer_counts, boards.nboards, s);
+    launch_reduction(count, last_layer_counts, nmoves, s);
+    cudaStreamSynchronize(s);
+
+    /* Free up resources. */
+    cuda_bbuf_free(&new_boards, s);
+    cudaFree(last_layer_counts);
+    cudaStreamDestroy(s);
 
     /* Destroy the child stream. */
-    cudaStreamDestroy(s);
 
     return CB_EOK;
 }
@@ -520,7 +530,7 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     cudaMemcpyAsync(count, d_count, sizeof(uint64_t), cudaMemcpyDeviceToHost);
 
     /* Free up the board vector and kernel results. */
-    cuda_bbuf_free(&d_bbuf, NULL);
+    //cuda_bbuf_free(&d_bbuf, NULL); /* This is freed in the kernel. */
     cudaFree(d_count);
 
     return CB_EOK;
