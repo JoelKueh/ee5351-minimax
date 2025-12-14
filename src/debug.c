@@ -216,9 +216,8 @@ int main()
     cb_mvlst_t moves;
     cb_board_t board;
     cb_state_tables_t state;
-    char *command = NULL;
-    size_t len = 0;
-    ssize_t nread;
+    char command[256];
+    int nread;
     int result = 0;
     bool run_program = true;
     cb_error_t err;
@@ -254,16 +253,14 @@ int main()
 
     /* Accept commands from the user. */
     while (run_program) {
-        if ((nread = getline(&command, &len, stdin)) < 0) {
-            perror("getline");
+        if (fgets(command, 256, stdin) == NULL) {
+            fprintf(stderr, "fgets: failed\n");
             result = 1;
-            goto out_free_command;
+            goto out_free_board;
         }
         run_program = parse_input(command, &board) >= 0;
     }
 
-out_free_command:
-    free(command);
 out_free_board:
     cb_board_free(&board);
 out_free_tables:

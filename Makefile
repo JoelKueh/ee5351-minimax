@@ -1,8 +1,8 @@
 
-NVCC= nvcc
-NVCC_FLAGS= -gencode=arch=compute_75,code=\"sm_75\" -Wno-deprecated-gpu-targets
+CUDA_COMP=75
 
-C_FLAGS=
+NVCC= nvcc
+NVCC_FLAGS= -gencode=arch=compute_$(CUDA_COMP),code=\"sm_$(CUDA_COMP)\" -Wno-deprecated-gpu-targets
 
 OPT_LEVEL= -O2
 
@@ -25,7 +25,7 @@ debug: CFLAGS += -g
 debug: default
 
 ALL_FLAGS = $(NVCC_FLAGS) $(INCLUDE_DIRS) $(OPT_LEVEL)
-CFLAGS = $(INCLUDE_DIRS) $(OPT_LEVEL)
+CFLAGS = $(INCLUDE_DIRS) $(OPT_LEVEL) -std=c11
 
 CBLIB_SRCS = src/cblib/cb_dbg.c src/cblib/cb_gen.c src/cblib/cb_lib.c \
 		 src/cblib/cb_magical.c src/cblib/cb_normal.c src/perft_cpu.c
