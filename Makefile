@@ -1,5 +1,5 @@
 
-CUDA_COMP=75
+CUDA_COMP=60
 
 NVCC= nvcc
 NVCC_FLAGS= -gencode=arch=compute_$(CUDA_COMP),code=\"sm_$(CUDA_COMP)\" -Wno-deprecated-gpu-targets
