@@ -29,7 +29,7 @@ extern "C" {
 
 /* Gpu search depth and launch parameters. */
 #define GPU_SEARCH_DEPTH 4
-#define GPU_MAX_BOARDS_IN_BUF (1 << 10) 
+#define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
 
 /* Globals for some stats. */
 uint64_t pbfs_launches;
