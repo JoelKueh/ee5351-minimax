@@ -27,9 +27,8 @@ debug: default
 ALL_FLAGS = $(NVCC_FLAGS) $(INCLUDE_DIRS) $(OPT_LEVEL)
 CFLAGS = $(INCLUDE_DIRS) $(OPT_LEVEL)
 
-CBLIB_SRCS = src/cblib/cb_const.c src/cblib/cb_dbg.c src/cblib/cb_gen.c \
-	     src/cblib/cb_lib.c src/cblib/cb_magical.c src/cblib/cb_normal.c \
-		 src/perft_cpu.c
+CBLIB_SRCS = src/cblib/cb_dbg.c src/cblib/cb_gen.c src/cblib/cb_lib.c \
+		 src/cblib/cb_magical.c src/cblib/cb_normal.c src/perft_cpu.c
 CBLIB_OBJS = $(CBLIB_SRCS:src/%.c=obj/%.o)
 CBLIB_DEPS = $(CBLIB_OBJS:%.o=%.d)
 -include $(CBLIB_DEPS)
