@@ -29,7 +29,11 @@ extern "C" {
 
 /* Gpu search depth and launch parameters. */
 #define GPU_SEARCH_DEPTH 4
-#define GPU_MAX_BOARDS_IN_BUF (1 << 9) 
+#define GPU_MAX_BOARDS_IN_BUF (1 << 10) 
+
+/* Globals for some stats. */
+uint64_t pbfs_launches;
+uint64_t total_gpu_time_ns;
 
 uint64_t *gpu_bishop_atk_ptrs_h[64];
 uint64_t *gpu_rook_atk_ptrs_h[64];
@@ -402,6 +406,11 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
     uint64_t *d_count;
     uint64_t result;
 
+    /* Update stats for pbfs_kernel_launch. */
+    uint64_t start_time, end_time;
+    start_time = time_ns();
+    pbfs_launches += 1;
+
     /* Allocate device memory. */
     d_bbuf.nboards = bbuf->nboards;
     cuda_bbuf_alloc(&d_bbuf);
@@ -418,6 +427,10 @@ cb_errno_t pbfs_kernel_launch(cb_error_t *__restrict__ err,
 
     /* Free the kernel results. */
     cudaFree(d_count);
+
+    /* Update total time. */
+    end_time = time_ns();
+    total_gpu_time_ns += end_time - start_time;
 
     return CB_EOK;
 }
@@ -532,6 +545,10 @@ cb_errno_t perft_gpu_bfs(cb_board_t *board, int depth)
     printf("\n");
     printf("Nodes searched: %" PRIu64 "\n", total);
     printf("Time: %" PRIu64 "ms\n", (end_time - start_time) / 1000000);
+    printf("info string total_launches: %" PRIu64 " total_time_ms: %" PRIu64
+           " average_kernel_time_ms: %f\n", pbfs_launches,
+           total_gpu_time_ns / 1000000,
+           (double)total_gpu_time_ns / pbfs_launches / 1000000.0);
     printf("\n");
 
     /* Free the allocated space in the board buffer. */
