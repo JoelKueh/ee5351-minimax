@@ -54,8 +54,7 @@ __global__ void reduce_to_u64(uint64_t *out, uint8_t *in, uint32_t n)
         out[bx] = shared[0];
 }
 
-__host__ void launch_reduction(uint64_t *result, uint8_t *data,
-        uint32_t n, cudaStream_t s)
+__host__ void launch_reduction(uint64_t *result, uint8_t *data, uint32_t n)
 {
     /* Allocate swap buffer for h_data on the GPU. */
     uint64_t *in_data;
@@ -67,7 +66,7 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
     /* First reduction is from uint8_t to uint64_t. */
     dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
     dim3 gridDim(ceil((float)n / (2 * REDUCTION_BLOCK_SIZE)), 1, 1);
-    reduce_to_u64<<<gridDim, blockDim, 0, s>>>(in_data, data, n);
+    reduce_to_u64<<<gridDim, blockDim>>>(in_data, data, n);
     n = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE));
 
     /* All remaining reductions are on the provided buffers. */
@@ -75,7 +74,7 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
         /* Launch the kernel to perform the reduction for the current size. */
         dim3 blockDim(REDUCTION_BLOCK_SIZE, 1, 1);
         dim3 gridDim(ceil((float)n / (2 * REDUCTION_BLOCK_SIZE)), 1, 1);
-        reduce<<<gridDim, blockDim, 0, s>>>(out_data, in_data, n);
+        reduce<<<gridDim, blockDim>>>(out_data, in_data, n);
 
         /* One reduction cuts size of input by twice BLOCK_SIZE. */
         n = ceil((float)n / (2 * REDUCTION_BLOCK_SIZE));
@@ -87,7 +86,8 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data,
     }
 
     /* Copy the reduced sum back to the CPU and free gpu memory. */
-    cudaMemcpy(result, in_data, 1 * sizeof(int), cudaMemcpyDeviceToDevice);
+    cudaMemcpy(result, in_data, sizeof(uint64_t), cudaMemcpyDeviceToDevice);
+    cudaDeviceSynchronize();
     cudaFree(in_data);
     cudaFree(out_data);
 }

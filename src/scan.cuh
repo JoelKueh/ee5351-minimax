@@ -115,7 +115,7 @@ __host__ void free_scan_buf(scan_buffer_t *__restrict__ buf)
     }
 }
 
-__host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n, cudaStream_t s)
+__host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
 {
     scan_buffer_t buf;
     dim3 blockDim;
@@ -127,12 +127,12 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n, cudaStream_t 
     /* Perform the first scan based on the input and output arrays. */
     blockDim = dim3(SCAN_BLOCK_SIZE, 1, 1);
     gridDim = dim3(ceil(n / (float)SCAN_TILE_SIZE), 1, 1);
-    scan<<<gridDim, blockDim, 0, s>>>(out, in, buf.buffers[0], n);
+    scan<<<gridDim, blockDim>>>(out, in, buf.buffers[0], n);
 
     /* If the computation fits on one block, compute in one shot. */
     if (n <= SCAN_TILE_SIZE) {
         /* TODO: Do I need this synchronization. */
-        cudaStreamSynchronize(s);
+        cudaDeviceSynchronize();
         free_scan_buf(&buf);
         return;
     }
@@ -141,28 +141,28 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n, cudaStream_t 
     for (int i = 1; i < buf.num_buffers; i++) {
         blockDim = dim3(SCAN_BLOCK_SIZE, 1, 1);
         gridDim = dim3(buf.counts[i], 1, 1);
-        scan<<<gridDim, blockDim, 0, s>>>(buf.buffers[i-1],
+        scan<<<gridDim, blockDim>>>(buf.buffers[i-1],
                 buf.buffers[i-1], buf.buffers[i], buf.counts[i-1]);
         /* TODO: Do I need this synchronization. */
-        cudaStreamSynchronize(s);
+        cudaDeviceSynchronize();
     }
 
     /* Preform propagations on the block_sums_buffer. */
     for (int i = buf.num_buffers - 1; i >= 1; i--) {
         blockDim = dim3(SCAN_TILE_SIZE, 1, 1);
         gridDim = dim3(buf.counts[i], 1, 1);
-        distribute<<<gridDim, blockDim, 0, s>>>(buf.buffers[i-1],
+        distribute<<<gridDim, blockDim>>>(buf.buffers[i-1],
                 buf.buffers[i], buf.counts[i-1]);
     }
 
     /* Perform the last distribution into the output array. */
     blockDim = dim3(SCAN_TILE_SIZE, 1, 1);
     gridDim = dim3(buf.counts[0], 1, 1);
-    distribute<<<gridDim, blockDim, 0, s>>>(out, buf.buffers[0], n);
+    distribute<<<gridDim, blockDim>>>(out, buf.buffers[0], n);
 
     /* Synchronize and free memory. */
     /* TODO: Do I need this synchronization. */
-    cudaStreamSynchronize(s);
+    cudaDeviceSynchronize();
     free_scan_buf(&buf);
 }
 
