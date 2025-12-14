@@ -130,8 +130,12 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n, cudaStream_t 
     scan<<<gridDim, blockDim, 0, s>>>(out, in, buf.buffers[0], n);
 
     /* If the computation fits on one block, compute in one shot. */
-    if (n <= SCAN_TILE_SIZE)
+    if (n <= SCAN_TILE_SIZE) {
+        /* TODO: Do I need this synchronization. */
+        cudaStreamSynchronize(s);
+        free_scan_buf(&buf);
         return;
+    }
 
     /* Perform subsequent scans on the block_sums_buffer. */
     for (int i = 1; i < buf.num_buffers; i++) {
