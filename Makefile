@@ -33,11 +33,6 @@ CBLIB_OBJS = $(CBLIB_SRCS:src/%.c=obj/%.o)
 CBLIB_DEPS = $(CBLIB_OBJS:%.o=%.d)
 -include $(CBLIB_DEPS)
 
-CUDA_SRCS = src/perft_gpu_bfs.cu
-CUDA_OBJS = $(CUDA_SRCS:src/%.cu=obj/%.cu.o)
-CUDA_DEPS = $(CUDA_OBJS:%.cu.o=%.cu.d)
--include $(CUDA_DEPS)
-
 # -O2 - Optimize host code.
 # -Ofc 0 - Disable fast compile for device code.
 # -opt-info inline - Tell us when a function is inlined
@@ -45,17 +40,14 @@ DEV_OPT_FLAGS= -O2 -Ofc 0 -opt-info inline
 gpu_usage:
 	$(NVCC) $(INCLUDE_DIRS) $(DEV_OPT_FLAGS) -Xptxas -v src/perft_gpu.cu
 
-$(BIN_DIR)/debug: obj/debug.o $(CBLIB_OBJS) $(CUDA_OBJS)
+.PHONY: $(BIN_DIR)/debug
+$(BIN_DIR)/debug: obj/debug.o src/perft_gpu_bfs.cu $(CBLIB_OBJS)
 	@mkdir -p $(dir $@)
 	$(NVCC) $(ALL_FLAGS) -o $@ $^
 
 obj/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -MF $(@:.o=.d) -c -o $@ $< 
-
-obj/%.cu.o: src/%.cu
-	@mkdir -p $(dir $@)
-	$(NVCC) $(ALL_FLAGS) -MMD -MP -MF $(@:.o=.d) -c -o $@ $< 
 
 clean:
 	rm -rf ./$(OBJ_DIR)/* ./$(BIN_DIR)/*

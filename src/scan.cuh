@@ -2,7 +2,7 @@
 #ifndef SCAN_H
 #define SCAN_H
 
-#include <cstdint>
+#include <stdint.h>
 
 #define SCAN_BLOCK_SIZE 512
 #define SCAN_TILE_SIZE (SCAN_BLOCK_SIZE << 1)

@@ -2,7 +2,7 @@
 #ifndef REDUCE_H
 #define REDUCE_H
 
-#include <cstdint>
+#include <stdint.h>
 
 #define REDUCTION_BLOCK_SIZE 1024
 

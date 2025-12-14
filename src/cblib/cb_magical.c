@@ -165,7 +165,7 @@ const uint64_t BISHOP_MAGICS[64] = {
 };
 
 const uint8_t MAX_BITS_IN_TABLE = 12;
-const uint32_t MAX_TABLE_SIZE = 1 << MAX_BITS_IN_TABLE;
+#define MAX_TABLE_SIZE (UINT32_C(1) << MAX_BITS_IN_TABLE)
 
 uint64_t bishop_occ_mask[64];
 uint64_t rook_occ_mask[64];
