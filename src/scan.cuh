@@ -143,8 +143,6 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
         gridDim = dim3(buf.counts[i], 1, 1);
         scan<<<gridDim, blockDim>>>(buf.buffers[i-1],
                 buf.buffers[i-1], buf.buffers[i], buf.counts[i-1]);
-        /* TODO: Do I need this synchronization. */
-        cudaDeviceSynchronize();
     }
 
     /* Preform propagations on the block_sums_buffer. */
@@ -161,8 +159,6 @@ __host__ void launch_scan(uint32_t *out, uint32_t *in, uint32_t n)
     distribute<<<gridDim, blockDim>>>(out, buf.buffers[0], n);
 
     /* Synchronize and free memory. */
-    /* TODO: Do I need this synchronization. */
-    cudaDeviceSynchronize();
     free_scan_buf(&buf);
 }
 

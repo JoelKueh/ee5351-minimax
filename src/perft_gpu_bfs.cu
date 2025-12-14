@@ -329,12 +329,8 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         gpu_mvcnt_kernel<<<gridDim, blockDim>>>(boards, move_counts, turn);
 
         /* Scan the counts returned from the previous kernel. */
-        cudaDeviceSynchronize();
         launch_scan(move_indicies + 1, move_counts, boards.nboards);
-        cudaDeviceSynchronize();
-
         cudaMemset(move_indicies, 0, sizeof(uint32_t));
-        cudaDeviceSynchronize();
 
         /* Allocate memory for the moves. */
         cudaMemcpy(&nmoves, &(move_indicies[boards.nboards]),
@@ -342,7 +338,6 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         cudaDeviceSynchronize();
         cudaMalloc((void**)&moves, nmoves * sizeof(gpu_move_t));
         cudaMalloc((void**)&source_board_indicies, nmoves * sizeof(uint32_t));
-        cudaDeviceSynchronize();
 
         /* Generate the moves. */
         blockDim = dim3(CHESS_BLOCK_SIZE, 1, 1);
@@ -364,8 +359,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
         gpu_mvmake_kernel<<<gridDim, blockDim>>>(boards, new_boards,
                 source_board_indicies, moves, nmoves, turn);
 
-        /* Synchronize with the stream before performing this rounds frees. */
-        cudaDeviceSynchronize();
+        /* Perform this rounds frees. */
         cudaFree(move_counts);
         cudaFree(move_indicies);
         cudaFree(moves);
@@ -378,7 +372,6 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     }
     
     /* Count the moves with the given position and move vectors. */
-    cudaDeviceSynchronize();
     cudaMalloc((void**)&last_layer_counts, nmoves * sizeof(uint8_t));
     dim3 blockDim(CHESS_BLOCK_SIZE, 1, 1);
     dim3 gridDim(ceil((float)nmoves / CHESS_BLOCK_SIZE), 1, 1);
@@ -386,9 +379,7 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
             source_board_indicies, moves, last_layer_counts, nmoves, turn);
 
     /* Reduce the count vector. */
-    cudaDeviceSynchronize();
     launch_reduction(count, last_layer_counts, nmoves);
-    cudaDeviceSynchronize();
 
     /* Free up resources. */
     cuda_bbuf_free(&new_boards);
@@ -397,7 +388,6 @@ cb_errno_t pbfs_kernel(cb_error_t *__restrict__ err,
     cudaFree(move_indicies);
     cudaFree(moves);
     cudaFree(source_board_indicies);
-    cudaDeviceSynchronize();
 
     return CB_EOK;
 }

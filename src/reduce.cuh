@@ -87,7 +87,6 @@ __host__ void launch_reduction(uint64_t *result, uint8_t *data, uint32_t n)
 
     /* Copy the reduced sum back to the CPU and free gpu memory. */
     cudaMemcpy(result, in_data, sizeof(uint64_t), cudaMemcpyDeviceToDevice);
-    cudaDeviceSynchronize();
     cudaFree(in_data);
     cudaFree(out_data);
 }
