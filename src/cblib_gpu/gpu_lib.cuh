@@ -2,8 +2,6 @@
 #ifndef GPU_LIB_H
 #define GPU_LIB_H
 
-#include <threads.h>
-
 #include "gpu_dbg.cuh"
 #include "gpu_const.cuh"
 #include "gpu_move.cuh"

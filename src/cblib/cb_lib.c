@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <threads.h>
 
 #include "cb_lib.h"
 #include "cb_tables.h"
