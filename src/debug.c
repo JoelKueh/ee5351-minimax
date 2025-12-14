@@ -224,7 +224,7 @@ int main()
     char default_fen[] = DEFAULT_FEN;
 
     /* Print version information. */
-    printf("kchess debug version 0.0.1 by Joel Kuehne\n");
+    printf("ee5351-perft version 1.0.0\n");
 
     /* Set up board tables. */
     err.num = CB_EOK;
